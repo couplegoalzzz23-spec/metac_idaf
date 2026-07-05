@@ -1,7 +1,8 @@
-streamlit
-requests
-pandas
-plotly
-numpy
-fpdf2
-beautifulsoup4
+streamlit==1.36.0
+pandas==2.2.2
+numpy==1.26.4
+plotly==5.22.0
+openpyxl==3.1.2
+requests==2.32.3
+beautifulsoup4==4.12.3
+fpdf==1.7.2
