@@ -962,7 +962,7 @@ if app_mode == "1️⃣ ACS Climatology (2021-2025)":
     st.markdown(f"""
     <div class="hero-container">
         <div>
-            <h1 class="hero-title">✈️ AVIATION CLIMATOLOGY DASHBOARD</h1>
+            <h1 class="hero-title">✈️ AVIATION METEOROLOGY DASHBOARD</h1>
             <div class="hero-subtitle">Aerodrome Climatological Summary (ACS) Multi-Year Average Analysis</div>
         </div>
         <div>
