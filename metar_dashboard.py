@@ -368,10 +368,54 @@ def qnh(m):
     x = re.search(r' Q(\d{4})', m)
     return f"{x.group(1)} hPa" if x else "-"
 
+# ----------------------------------------------------
+# PERBAIKAN: Fungsi parse_numeric_metar untuk
+# mengatasi bug Tahun 1900 pada Timestamp METAR
+# ----------------------------------------------------
 def parse_numeric_metar(m):
     t = re.search(r' (\d{2})(\d{2})(\d{2})Z', m)
     if not t: return None
-    data = {"time": datetime.strptime(t.group(0).strip(), "%d%H%MZ"), "wind": None, "temp": None, "dew": None, "qnh": None, "vis": None, "RA": "RA" in m, "TS": "TS" in m, "FG": "FG" in m}
+    
+    # Ekstrak hari, jam, dan menit dari string METAR
+    metar_day = int(t.group(1))
+    metar_hour = int(t.group(2))
+    metar_min = int(t.group(3))
+    
+    # Ambil waktu UTC saat ini sebagai referensi
+    now = datetime.utcnow()
+    candidates = []
+    
+    # Kandidat 1: Bulan saat ini
+    try:
+        candidates.append(datetime(now.year, now.month, metar_day, metar_hour, metar_min))
+    except ValueError:
+        pass
+        
+    # Kandidat 2: Bulan sebelumnya
+    p_year = now.year - 1 if now.month == 1 else now.year
+    p_month = 12 if now.month == 1 else now.month - 1
+    try:
+        candidates.append(datetime(p_year, p_month, metar_day, metar_hour, metar_min))
+    except ValueError:
+        pass
+        
+    # Kandidat 3: Bulan berikutnya
+    n_year = now.year + 1 if now.month == 12 else now.year
+    n_month = 1 if now.month == 12 else now.month + 1
+    try:
+        candidates.append(datetime(n_year, n_month, metar_day, metar_hour, metar_min))
+    except ValueError:
+        pass
+    
+    # Pilih tanggal valid yang paling dekat dengan waktu penarikan data (now)
+    parsed_time = min(candidates, key=lambda d: abs((d - now).total_seconds()))
+
+    data = {
+        "time": parsed_time, 
+        "wind": None, "temp": None, "dew": None, "qnh": None, "vis": None, 
+        "RA": "RA" in m, "TS": "TS" in m, "FG": "FG" in m
+    }
+    
     w = re.search(r'(\d{3})(\d{2})KT', m)
     if w: data["wind"] = int(w.group(2))
     td = re.search(r' (M?\d{2})/(M?\d{2})', m)
@@ -594,7 +638,15 @@ with tab3:
             fig.add_trace(go.Scatter(x=df_hist["time"], y=df_hist["RA"].astype(int), mode="markers", name="RA"), 5, 1)
             fig.add_trace(go.Scatter(x=df_hist["time"], y=df_hist["TS"].astype(int), mode="markers", name="TS"), 5, 1)
             fig.add_trace(go.Scatter(x=df_hist["time"], y=df_hist["FG"].astype(int), mode="markers", name="FG"), 5, 1)
+            
             fig.update_layout(height=950, hovermode="x unified", template="plotly_dark")
+            
+            # ----------------------------------------------------
+            # PERBAIKAN PLOTLY: Format hover timestamp sumbu X
+            # Sesuai standar UTC Aviasi dan fixing 1900 bug
+            # ----------------------------------------------------
+            fig.update_xaxes(hoverformat="%d %b %Y %H:%M UTC")
+            
             st.plotly_chart(fig, use_container_width=True)
             
             df_hist["time"] = df_hist["time"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
