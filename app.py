@@ -1,190 +1,200 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
-import requests
-import plotly.graph_objects as go
-import plotly.express as px
-import os
-from bs4 import BeautifulSoup
-from datetime import datetime
 
-# ==========================================
-# 1. KONFIGURASI SISTEM UTAMA
-# ==========================================
-st.set_page_config(
-    page_title="Tactical Weather Ops - Lanud RSN",
-    page_icon="✈️",
-    layout="wide",
-    initial_sidebar_state="expanded"
+# =====================================================================
+# U-AWIS: MAIN CONTAINER & ROUTER
+# Arsitektur: Isolated Page Navigation dengan Injeksi Tema Global via CSS
+# =====================================================================
+
+def render_home_page():
+    """
+    Fungsi untuk merender antarmuka halaman utama U-AWIS.
+    Ditempatkan di dalam fungsi agar st.set_page_config tidak bertabrakan
+    dengan st.set_page_config yang ada di script dashboard lainnya.
+    """
+    st.set_page_config(
+        page_title="U-AWIS | Unified Aviation Weather",
+        page_icon="✈️",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
+
+    # =====================================================================
+    # INJEKSI CSS GLOBAL (Menggantikan config.toml untuk Tema Sidebar & Konten)
+    # =====================================================================
+    st.markdown("""
+        <style>
+        /* Pengaturan Tema Aplikasi Utama (Deep Navy & Slate Gray) */
+        .stApp {
+            background-color: #0A1128 !important;
+            color: #E2E8F0 !important;
+            font-family: 'Consolas', 'Roboto Mono', monospace !important;
+        }
+        
+        /* Pengaturan Warna Sidebar Navigasi secara Agresif agar Sinkron */
+        [data-testid="stSidebar"] {
+            background-color: #162A4A !important;
+        }
+        [data-testid="stSidebar"] * {
+            color: #E2E8F0 !important;
+        }
+        [data-testid="stSidebarNav"] ul li div:hover {
+            background-color: #00B4D822 !important;
+        }
+        
+        /* Komponen Header U-AWIS */
+        .uawis-header {
+            background: linear-gradient(135deg, #162A4A 0%, #0D1B2A 100%);
+            padding: 35px;
+            border-radius: 12px;
+            border-left: 6px solid #00B4D8;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            margin-bottom: 35px;
+        }
+        .uawis-header h1 {
+            color: #00B4D8 !important;
+            margin: 0;
+            font-size: 2.8rem;
+            font-family: 'Consolas', monospace;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .uawis-header p {
+            color: #94A3B8;
+            font-size: 1.15rem;
+            margin-top: 10px;
+            font-family: sans-serif;
+        }
+        
+        /* Status Badge Online */
+        .status-badge {
+            background-color: #059669;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            vertical-align: middle;
+            margin-left: 10px;
+        }
+        
+        /* Kartu Informasi Modul */
+        .module-card {
+            background-color: #1E293B;
+            padding: 25px;
+            border-radius: 10px;
+            border-top: 4px solid #F59E0B;
+            text-align: center;
+            height: 100%;
+            transition: transform 0.2s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .module-card:hover {
+            transform: translateY(-5px);
+            border-top: 4px solid #00B4D8;
+        }
+        .module-card h3 { 
+            color: #F59E0B; 
+            font-size: 1.4rem; 
+            margin-bottom: 15px;
+        }
+        .module-card p {
+            color: #CBD5E1; 
+            font-size: 0.95rem;
+            line-height: 1.5;
+            font-family: sans-serif;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # ==========================
+    # KONTEN UI HALAMAN UTAMA
+    # ==========================
+    st.markdown("""
+        <div class="uawis-header">
+            <h1>🌐 U-AWIS COMMAND CENTER</h1>
+            <p>Unified Aviation Weather Information System — Sistem Terpadu Pemantauan Meteorologi Penerbangan</p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("### 📡 System Modules Status <span class='status-badge'>ONLINE</span>", unsafe_allow_html=True)
+    st.write("") # Spacer
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("""
+        <div class="module-card">
+            <h3>🛰️ Tactical METAR & TAF</h3>
+            <p>Sistem pemantauan cuaca taktis real-time. Menampilkan data observasi (METAR) dan prakiraan (TAF) untuk pangkalan TNI AU di seluruh wilayah Indonesia.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col2:
+        st.markdown("""
+        <div class="module-card">
+            <h3>📊 Aviation Climatology</h3>
+            <p>Sistem rekapitulasi histori cuaca. Menyajikan ringkasan kondisi aerodrome RSN berdasarkan pengolahan data ACS periode 2021 hingga 2025.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col3:
+        st.markdown("""
+        <div class="module-card">
+            <h3>🌤️ Diurnal Patterns</h3>
+            <p>Sistem analisis meteorologi lanjutan. Memetakan pola diurnal aerodrome RSN dari data ACS 2021-2025 untuk mendukung perencanaan penerbangan.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.info("ℹ️ **Petunjuk Penggunaan:** Silakan buka menu navigasi (Sidebar) di sebelah kiri layar untuk memilih dan menjalankan spesifik modul dashboard.")
+    st.caption("U-AWIS Unified Platform © 2026")
+
+
+# =====================================================================
+# REGISTRASI HALAMAN & ROUTING (BLACK-BOX ISOLATION)
+# =====================================================================
+
+# 1. Halaman Overview (Container Utama)
+page_home = st.Page(
+    render_home_page, 
+    title="U-AWIS Overview", 
+    icon="🏠", 
+    default=True
 )
 
-# ==========================================
-# 2. CSS STYLING (MILITARY / TACTICAL THEME)
-# ==========================================
-st.markdown("""
-    <style>
-    /* Tema Gelap Taktis */
-    .stApp { background-color: #0b0c0c; color: #cfd2c3; font-family: "Consolas", "Roboto Mono", monospace; }
-    h1, h2, h3, h4 { color: #a9df52; text-transform: uppercase; letter-spacing: 1px; font-weight: bold; }
-    .st-expander { border-color: #3f4f3f !important; border-radius: 8px; }
-    div[data-testid="stMetricValue"] { color: #a9df52; font-size: 28px; font-weight: bold; }
-    section[data-testid="stSidebar"] { background-color: #111; border-right: 1px solid #2b3b2b; }
-    .stButton>button { background-color: #1a2a1f; color: #a9df52; border: 1px solid #3f4f3f; border-radius: 8px; font-weight: bold; }
-    .stButton>button:hover { background-color: #2b3b2b; border-color: #a9df52; }
-    
-    /* Footer Kustom */
-    .footer { text-align: center; color: #7a7; font-size: 0.85rem; padding: 15px; border-top: 1px solid #3f4f3f; margin-top: 40px; }
-    </style>
-""", unsafe_allow_html=True)
+# 2. Halaman Modul (Memanggil file script asli sebagai modul terisolasi)
+page_metar = st.Page(
+    "metar_dashboard.py", 
+    title="Tactical METAR & TAF", 
+    icon="🛰️"
+)
 
-# ==========================================
-# 3. FUNGSI ROBUST DATA LOADER (ANTI-CRASH)
-# ==========================================
-@st.cache_data(ttl=600, show_spinner=False)
-def fetch_bmkg_tactical_data(provinsi="Riau"):
-    """Mengambil data cuaca BMKG via API secara aman"""
-    url = f"https://data.bmkg.go.id/DataMKG/MEWS/DigitalForecast/DigitalForecast-{provinsi}.xml"
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        return response.text
-    except Exception as e:
-        st.error(f"⚠️ Gagal mengambil data taktis BMKG: {e}")
-        return None
+page_acs = st.Page(
+    "acs_dashboard.py", 
+    title="Aviation Climatology", 
+    icon="📊"
+)
 
-@st.cache_data(show_spinner=False)
-def load_acs_data(filename):
-    """Membaca file Excel lokal (Climatology) tanpa memicu error jika file hilang"""
-    # Sesuaikan path ini jika file excel berada di dalam folder 'data' (misal: os.path.join("data", filename))
-    filepath = filename 
-    if os.path.exists(filepath):
-        try:
-            return pd.read_excel(filepath)
-        except Exception as e:
-            st.error(f"⚠️ Kesalahan membaca file {filepath}: {e}")
-            return pd.DataFrame()
-    else:
-        st.warning(f"⚠️ File data {filepath} belum tersedia di repositori.")
-        return pd.DataFrame()
+page_diurnal = st.Page(
+    "meteogram_dashboard.py", 
+    title="Diurnal Patterns", 
+    icon="🌤️"
+)
 
-# ==========================================
-# 4. SIDEBAR COMMAND CENTER
-# ==========================================
-st.sidebar.markdown("### 🧭 COMMAND CENTER")
-st.sidebar.caption("Sistem Informasi Cuaca Terintegrasi")
 
-menu = st.sidebar.radio("Navigasi Modul:", [
-    "📡 Real-Time Tactical (BMKG)", 
-    "📊 ACS Climatology", 
-    "🌬️ Diurnal & Windrose"
-])
-
-st.sidebar.markdown("---")
-st.sidebar.caption("Operasional: Lanud Roesmin Nurjadin")
-
-# ==========================================
-# 5. ROUTING & RENDERING MODUL
-# ==========================================
-
-if menu == "📡 Real-Time Tactical (BMKG)":
-    st.title("📡 Real-Time Tactical Weather Ops")
-    st.markdown("Pemantauan observasi aktual terintegrasi API BMKG untuk dukungan operasi pangkalan.")
-    
-    with st.spinner("Menyinkronkan data dengan server BMKG..."):
-        xml_data = fetch_bmkg_tactical_data()
-        
-    if xml_data:
-        st.success("Tautan data operasional berhasil diamankan.")
-        # [Bagian ini diisi dengan logika parsing BeautifulSoup dan visualisasi Metar/Tactical Table Anda]
-        # Contoh struktur layout:
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Status Sistem", "ONLINE", "API Aktif")
-        col2.metric("Pembaruan Terakhir", datetime.now().strftime("%H:%M UTC"), "Real-time")
-        col3.metric("Lokasi Sasaran", "Pekanbaru / WIBB", "Terverifikasi")
-        
-        st.info("Logika pemrosesan XML BMKG dan rendering peta taktis (st.map) diaktifkan di sini.")
-
-elif menu == "📊 ACS Climatology":
-    st.title("📊 Aerodrome Climatological Summary")
-    st.markdown("Analisis data statistik penerbangan historis.")
-    
-    # Sub-navigasi untuk modul Climatology
-    acs_menu = st.selectbox("Pilih Parameter ACS:", [
-        "Temperature Frequency", 
-        "Temperature Mean Max Min", 
-        "Relative Humidity", 
-        "Visibility", 
-        "Cloud Base", 
-        "Wind"
-    ])
-    
-    st.markdown("---")
-    
-    if acs_menu == "Temperature Frequency":
-        st.subheader("🌡️ Frekuensi Suhu")
-        df_temp = load_acs_data("rekap_temperature_2021_2025.xlsx")
-        if not df_temp.empty:
-            st.dataframe(df_temp, use_container_width=True)
-            # Logika Plotly Bar Chart...
-            
-    elif acs_menu == "Relative Humidity":
-        st.subheader("💧 Kelembapan Relatif (RH)")
-        df_rh = load_acs_data("rekap_rh_max_min_2021_2025.xlsx")
-        if not df_rh.empty:
-            st.dataframe(df_rh, use_container_width=True)
-            # Logika Plotly Line Chart...
-            
-    # Tambahkan block elif lainnya sesuai dengan parameter Excel di repository Anda.
-
-elif menu == "🌬️ Diurnal & Windrose":
-    st.title("🌬️ Distribusi Diurnal & Windrose")
-    st.markdown("Distribusi arah dan kecepatan angin berdasarkan standar instrumen.")
-    
-    # Contoh implementasi Windrose Standar WMO yang sudah diperbaiki (Utara di Atas)
-    st.markdown("### Simulasi Plot Windrose (WMO Standard)")
-    
-    # Dummy data untuk fallback visualisasi jika data asli belum diproses
-    compass_order = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
-    dummy_data = pd.DataFrame({
-        "Direction_Label": np.random.choice(compass_order, 100),
-        "Speed_Knot": np.random.randint(1, 20, 100),
-        "Frequency": np.random.rand(100) * 10
+# =====================================================================
+# INISIALISASI NAVIGASI UTAMA
+# =====================================================================
+try:
+    # Mengelompokkan halaman secara seamless di sidebar
+    pg = st.navigation({
+        "MAIN SYSTEM": [page_home],
+        "OPERATIONAL MODULES": [page_metar, page_acs, page_diurnal]
     })
     
-    fig = px.bar_polar(
-        dummy_data, 
-        r="Frequency", 
-        theta="Direction_Label", 
-        color="Speed_Knot",
-        color_discrete_sequence=px.colors.sequential.Plasma_r,
-        title="Distribusi Arah dan Kecepatan Angin (Knots)",
-        template="plotly_dark" # Menggunakan tema gelap menyesuaikan desain taktis
-    )
+    # Jalankan sistem router
+    pg.run()
     
-    # KONFIGURASI SUMBU POLAR (STANDAR WMO)
-    fig.update_layout(
-        polar=dict(
-            angularaxis=dict(
-                direction="clockwise",       # Berputar searah jarum jam
-                categoryorder="array",       # Memaksa Plotly mengikuti urutan kompas
-                categoryarray=compass_order,
-                rotation=90                  # Memutar sumbu agar elemen pertama (Utara) tepat di atas
-            ),
-            radialaxis=dict(showline=True, gridcolor="#333")
-        ),
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)'
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-
-# ==========================================
-# 6. FOOTER (IDENTITAS & HAK CIPTA)
-# ==========================================
-st.markdown("""
-<div class="footer">
-    <strong>Pengembangan Aerodrome Climatological Summary dan Informasi Cuaca Terintegrasi API BMKG</strong><br>
-    Untuk Mendukung Operasional Pangkalan Militer Roesmin Nurjadin<br><br>
-    © 2026 | Dikembangkan oleh: Resti Maulina Chusnul C. (NPT: 11220089) - Kelas: Meteorologi 7C STMKG
-</div>
-""", unsafe_allow_html=True)
+except Exception as e:
+    st.error("Terjadi kegagalan sistem pada saat memuat modul navigasi.")
+    st.code(str(e))
