@@ -524,7 +524,7 @@ def render_wind_page():
         st.warning("⚠️ Data angin kosong atau file `rekap_wind_2021_2025.xlsx` tidak ditemukan.")
 
 def render_acs_home():
-    st.title("✈️ Aviation Climatology Dashboard")
+    st.title("✈️ Aviation Meteorology Dashboard")
     st.markdown("---")
     col1, col2 = st.columns([2, 1])
     with col1:
