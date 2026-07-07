@@ -368,64 +368,50 @@ def qnh(m):
     x = re.search(r' Q(\d{4})', m)
     return f"{x.group(1)} hPa" if x else "-"
 
-# ----------------------------------------------------
-# PERBAIKAN: Fungsi parse_numeric_metar untuk
-# mengatasi bug Tahun 1900 pada Timestamp METAR
-# ----------------------------------------------------
+# PERBAIKAN PADA FUNGSI PARSING WAKTU METAR
 def parse_numeric_metar(m):
     t = re.search(r' (\d{2})(\d{2})(\d{2})Z', m)
     if not t: return None
     
-    # Ekstrak hari, jam, dan menit dari string METAR
-    metar_day = int(t.group(1))
-    metar_hour = int(t.group(2))
-    metar_min = int(t.group(3))
+    # Ekstraksi DD HH MM dari METAR
+    day = int(t.group(1))
+    hour = int(t.group(2))
+    minute = int(t.group(3))
     
-    # Ambil waktu UTC saat ini sebagai referensi
-    now = datetime.utcnow()
-    candidates = []
+    # Deteksi tahun dan bulan dari waktu saat ini
+    now_utc = datetime.now(timezone.utc)
+    year = now_utc.year
+    month = now_utc.month
     
-    # Kandidat 1: Bulan saat ini
+    # Mengatasi lompatan bulan (Rollover). Misal: Sekarang tgl 1, Data METAR tgl 31 (Bulan sebelumnya)
+    if day > now_utc.day + 15:
+        month -= 1
+        if month == 0:
+            month = 12
+            year -= 1
+            
     try:
-        candidates.append(datetime(now.year, now.month, metar_day, metar_hour, metar_min))
+        dt_time = datetime(year, month, day, hour, minute, tzinfo=timezone.utc)
     except ValueError:
-        pass
+        # Fallback logis jika terjadi error tanggal (misal parsing error)
+        dt_time = datetime.now(timezone.utc)
         
-    # Kandidat 2: Bulan sebelumnya
-    p_year = now.year - 1 if now.month == 1 else now.year
-    p_month = 12 if now.month == 1 else now.month - 1
-    try:
-        candidates.append(datetime(p_year, p_month, metar_day, metar_hour, metar_min))
-    except ValueError:
-        pass
-        
-    # Kandidat 3: Bulan berikutnya
-    n_year = now.year + 1 if now.month == 12 else now.year
-    n_month = 1 if now.month == 12 else now.month + 1
-    try:
-        candidates.append(datetime(n_year, n_month, metar_day, metar_hour, metar_min))
-    except ValueError:
-        pass
-    
-    # Pilih tanggal valid yang paling dekat dengan waktu penarikan data (now)
-    parsed_time = min(candidates, key=lambda d: abs((d - now).total_seconds()))
-
-    data = {
-        "time": parsed_time, 
-        "wind": None, "temp": None, "dew": None, "qnh": None, "vis": None, 
-        "RA": "RA" in m, "TS": "TS" in m, "FG": "FG" in m
-    }
+    data = {"time": dt_time, "wind": None, "temp": None, "dew": None, "qnh": None, "vis": None, "RA": "RA" in m, "TS": "TS" in m, "FG": "FG" in m}
     
     w = re.search(r'(\d{3})(\d{2})KT', m)
     if w: data["wind"] = int(w.group(2))
+    
     td = re.search(r' (M?\d{2})/(M?\d{2})', m)
     if td:
         data["temp"] = int(td.group(1).replace("M", "-"))
         data["dew"] = int(td.group(2).replace("M", "-"))
+        
     q = re.search(r' Q(\d{4})', m)
     if q: data["qnh"] = int(q.group(1))
+    
     v = re.search(r' (\d{4}) ', m)
     if v: data["vis"] = int(v.group(1))
+    
     return data
 
 def generate_raw_pdf(lines):
@@ -475,11 +461,7 @@ def flatten_cuaca_entry(entry):
 with st.sidebar:
     st.title("🛰️ Tactical Controls")
     
-    # ----------------------------------------------------
-    # PEMBARUAN: Mengganti Text Input dengan Selectbox
-    # ----------------------------------------------------
     provinsi_list = list(PROVINCE_ADM1_MAP.keys())
-    # Mencari index "Riau (14)" untuk dijadikan default value
     default_idx = provinsi_list.index("Riau (14)") if "Riau (14)" in provinsi_list else 0
     
     selected_prov_label = st.selectbox(
@@ -488,9 +470,7 @@ with st.sidebar:
         index=default_idx
     )
     
-    # Mengekstrak value ADM1 dari dictionary
     adm1 = PROVINCE_ADM1_MAP[selected_prov_label]
-    # ----------------------------------------------------
     
     st.markdown("<div class='radar'></div>", unsafe_allow_html=True)
     st.markdown("<p style='text-align:center; color:#5f5;'>Scanning Weather...</p>", unsafe_allow_html=True)
@@ -639,13 +619,16 @@ with tab3:
             fig.add_trace(go.Scatter(x=df_hist["time"], y=df_hist["TS"].astype(int), mode="markers", name="TS"), 5, 1)
             fig.add_trace(go.Scatter(x=df_hist["time"], y=df_hist["FG"].astype(int), mode="markers", name="FG"), 5, 1)
             
-            fig.update_layout(height=950, hovermode="x unified", template="plotly_dark")
-            
-            # ----------------------------------------------------
-            # PERBAIKAN PLOTLY: Format hover timestamp sumbu X
-            # Sesuai standar UTC Aviasi dan fixing 1900 bug
-            # ----------------------------------------------------
-            fig.update_xaxes(hoverformat="%d %b %Y %H:%M UTC")
+            # PERBAIKAN FORMAT HOVER DAN SUMBU X PADA GRAFIK PLOTLY
+            fig.update_layout(
+                height=950, 
+                hovermode="x unified", 
+                template="plotly_dark",
+                xaxis=dict(
+                    tickformat="%d %b\n%H:%M",
+                    hoverformat="%d %b %Y, %H:%M UTC"  # Memaksa Plotly menampilkan string waktu dengan benar
+                )
+            )
             
             st.plotly_chart(fig, use_container_width=True)
             
