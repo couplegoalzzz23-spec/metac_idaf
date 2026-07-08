@@ -1,26 +1,42 @@
 import streamlit as st
+import sys
 
 # =====================================================================
-# U-AWIS: MAIN CONTAINER & ROUTER
-# Arsitektur: Isolated Page Navigation dengan Injeksi Tema Global via CSS
+# BLACK-BOX ISOLATION MONKEY-PATCH (ANTI-CRASH LOGIC)
+# Trik cerdas untuk memblokir error duplikasi st.set_page_config() 
+# TANPA harus memodifikasi isi file dari ketiga script asli Anda.
 # =====================================================================
+if not hasattr(st, '_original_set_page_config'):
+    st._original_set_page_config = st.set_page_config
+    
+    def robust_set_page_config(*args, **kwargs):
+        # Jika konfigurasi halaman utama/pertama kali belum diset, ijinkan.
+        if not st.session_state.get('_page_config_initialized', False):
+            st.session_state['_page_config_initialized'] = True
+            try:
+                st._original_set_page_config(*args, **kwargs)
+            except Exception:
+                pass
+        else:
+            # Mengabaikan secara senyap (silently ignore) jika script dashboard 1, 2, atau 3 
+            # mencoba memanggil st.set_page_config() lagi agar tidak memicu StreamlitAPIException.
+            pass
 
+    st.set_page_config = robust_set_page_config
+
+# Set konfigurasi inisial pertama kali secara aman sebelum router berjalan
+st.set_page_config(
+    page_title="U-AWIS | Unified Aviation Weather",
+    page_icon="✈️",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# =====================================================================
+# SYSTEM HOMEPAGE RENDER (UI/UX U-AWIS KHUSUS OVERVIEW)
+# =====================================================================
 def render_home_page():
-    """
-    Fungsi untuk merender antarmuka halaman utama U-AWIS.
-    Ditempatkan di dalam fungsi agar st.set_page_config tidak bertabrakan
-    dengan st.set_page_config yang ada di script dashboard lainnya.
-    """
-    st.set_page_config(
-        page_title="U-AWIS | Unified Aviation Weather",
-        page_icon="✈️",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
-
-    # =====================================================================
-    # INJEKSI CSS GLOBAL (Menggantikan config.toml untuk Tema Sidebar & Konten)
-    # =====================================================================
+    # Injeksi CSS Global untuk mempertahankan Tema Penerbangan (Aviation Theme)
     st.markdown("""
         <style>
         /* Pengaturan Tema Aplikasi Utama (Deep Navy & Slate Gray) */
@@ -106,9 +122,7 @@ def render_home_page():
         </style>
     """, unsafe_allow_html=True)
 
-    # ==========================
     # KONTEN UI HALAMAN UTAMA
-    # ==========================
     st.markdown("""
         <div class="uawis-header">
             <h1>🌐 U-AWIS COMMAND CENTER</h1>
@@ -117,7 +131,7 @@ def render_home_page():
     """, unsafe_allow_html=True)
 
     st.markdown("### 📡 System Modules Status <span class='status-badge'>ONLINE</span>", unsafe_allow_html=True)
-    st.write("") # Spacer
+    st.write("") 
     
     col1, col2, col3 = st.columns(3)
     
@@ -151,10 +165,10 @@ def render_home_page():
 
 
 # =====================================================================
-# REGISTRASI HALAMAN & ROUTING (BLACK-BOX ISOLATION)
+# REGISTRASI HALAMAN & NAVIGASI UTAMA
 # =====================================================================
 
-# 1. Halaman Overview (Container Utama)
+# 1. Definisikan halaman Overview Container
 page_home = st.Page(
     render_home_page, 
     title="U-AWIS Overview", 
@@ -162,7 +176,7 @@ page_home = st.Page(
     default=True
 )
 
-# 2. Halaman Modul (Memanggil file script asli sebagai modul terisolasi)
+# 2. Definisikan halaman eksternal dari script asli Anda (Terisolasi sempurna)
 page_metar = st.Page(
     "metar_dashboard.py", 
     title="Tactical METAR & TAF", 
@@ -181,18 +195,14 @@ page_diurnal = st.Page(
     icon="🌤️"
 )
 
-
-# =====================================================================
-# INISIALISASI NAVIGASI UTAMA
-# =====================================================================
 try:
-    # Mengelompokkan halaman secara seamless di sidebar
+    # Mengelompokkan struktur halaman ke dalam Sidebar
     pg = st.navigation({
         "MAIN SYSTEM": [page_home],
         "OPERATIONAL MODULES": [page_metar, page_acs, page_diurnal]
     })
     
-    # Jalankan sistem router
+    # Jalankan router navigasi utama
     pg.run()
     
 except Exception as e:
