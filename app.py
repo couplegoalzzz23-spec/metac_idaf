@@ -4,13 +4,13 @@ import sys
 # =====================================================================
 # BLACK-BOX ISOLATION MONKEY-PATCH (ANTI-CRASH LOGIC)
 # Trik cerdas untuk memblokir error duplikasi st.set_page_config() 
-# TANPA harus memodifikasi isi file dari ketiga script asli Anda.
+# TANPA harus memodifikasi isi file dari ketiga script asli Anda[cite: 1].
 # =====================================================================
 if not hasattr(st, '_original_set_page_config'):
     st._original_set_page_config = st.set_page_config
     
     def robust_set_page_config(*args, **kwargs):
-        # Jika konfigurasi halaman utama/pertama kali belum diset, ijinkan.
+        # Jika konfigurasi halaman utama/pertama kali belum diset, ijinkan[cite: 1].
         if not st.session_state.get('_page_config_initialized', False):
             st.session_state['_page_config_initialized'] = True
             try:
@@ -19,12 +19,12 @@ if not hasattr(st, '_original_set_page_config'):
                 pass
         else:
             # Mengabaikan secara senyap (silently ignore) jika script dashboard 1, 2, atau 3 
-            # mencoba memanggil st.set_page_config() lagi agar tidak memicu StreamlitAPIException.
+            # mencoba memanggil st.set_page_config() lagi agar tidak memicu StreamlitAPIException[cite: 1].
             pass
 
     st.set_page_config = robust_set_page_config
 
-# Set konfigurasi inisial pertama kali secara aman sebelum router berjalan
+# Set konfigurasi inisial pertama kali secara aman sebelum router berjalan[cite: 1].
 st.set_page_config(
     page_title="U-AWIS | Unified Aviation Weather",
     page_icon="✈️",
@@ -36,7 +36,7 @@ st.set_page_config(
 # SYSTEM HOMEPAGE RENDER (UI/UX U-AWIS KHUSUS OVERVIEW)
 # =====================================================================
 def render_home_page():
-    # Injeksi CSS Global untuk mempertahankan Tema Penerbangan (Aviation Theme)
+    # Injeksi CSS Global untuk mempertahankan Tema Penerbangan (Aviation Theme)[cite: 1].
     st.markdown("""
         <style>
         /* Pengaturan Tema Aplikasi Utama (Deep Navy & Slate Gray) */
@@ -122,7 +122,7 @@ def render_home_page():
         </style>
     """, unsafe_allow_html=True)
 
-    # KONTEN UI HALAMAN UTAMA
+    # KONTEN UI HALAMAN UTAMA[cite: 1]
     st.markdown("""
         <div class="uawis-header">
             <h1>🌐 U-AWIS COMMAND CENTER</h1>
@@ -168,7 +168,7 @@ def render_home_page():
 # REGISTRASI HALAMAN & NAVIGASI UTAMA
 # =====================================================================
 
-# 1. Definisikan halaman Overview Container
+# 1. Definisikan halaman Overview Container[cite: 1]
 page_home = st.Page(
     render_home_page, 
     title="U-AWIS Overview", 
@@ -176,7 +176,7 @@ page_home = st.Page(
     default=True
 )
 
-# 2. Definisikan halaman eksternal dari script asli Anda (Terisolasi sempurna)
+# 2. Definisikan halaman eksternal dari script asli Anda (Terisolasi sempurna)[cite: 1]
 page_metar = st.Page(
     "metar_dashboard.py", 
     title="Tactical METAR & TAF", 
@@ -196,13 +196,13 @@ page_diurnal = st.Page(
 )
 
 try:
-    # Mengelompokkan struktur halaman ke dalam Sidebar
+    # Mengelompokkan struktur halaman ke dalam Sidebar[cite: 1]
     pg = st.navigation({
         "MAIN SYSTEM": [page_home],
         "OPERATIONAL MODULES": [page_metar, page_acs, page_diurnal]
     })
     
-    # Jalankan router navigasi utama
+    # Jalankan router navigasi utama[cite: 1]
     pg.run()
     
 except Exception as e:
