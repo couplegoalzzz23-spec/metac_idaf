@@ -132,21 +132,21 @@ else:
     """, unsafe_allow_html=True)
 
 # =====================================================================
-# 3. GLOBAL FIX: COMPACT SIDEBAR & ANTI-CLIPPING DROPDOWN
+# 3. GLOBAL FIX: SMART SIDEBAR & ANTI-CLIPPING DROPDOWN
 # =====================================================================
 st.markdown("""
     <style>
-    /* A. MEMBUAT TATA LETAK SIDEBAR MENJADI PADAT (MENGURANGI JARAK KOSONG) */
-    
-    /* Mengangkat seluruh isi sidebar agar lebih dekat ke atas layar */
+    /* A. MEMBUAT TATA LETAK SIDEBAR MENJADI PADAT TAPI RAPI */
     [data-testid="stSidebarUserContent"] {
         padding-top: 1.5rem !important;
-        padding-bottom: 1rem !important;
+        /* RUANG KOSONG TAK TERLIHAT (PHANTOM SPACE) */
+        /* Ini menjamin dropdown paling bawah tidak akan pernah menabrak tepi layar */
+        padding-bottom: 400px !important; 
     }
     
-    /* Mengurangi secara drastis jarak antar setiap elemen di sidebar */
+    /* Mengatur jarak (gap) antar elemen agar tidak terlalu jauh */
     [data-testid="stSidebar"] div[data-testid="stVerticalBlock"] {
-        gap: 0.2rem !important; 
+        gap: 0.5rem !important; 
     }
     [data-testid="stSidebar"] div[data-testid="stVerticalBlock"] > div {
         padding-bottom: 0 !important;
@@ -154,34 +154,17 @@ st.markdown("""
     
     /* Merapatkan jarak batas garis horizontal (hr) */
     [data-testid="stSidebar"] hr {
-        margin-top: 0.5rem !important;
-        margin-bottom: 0.5rem !important;
+        margin-top: 0.8rem !important;
+        margin-bottom: 0.8rem !important;
     }
     
-    /* Merapatkan jarak label dari dropdown menu */
-    [data-testid="stSidebar"] label {
-        padding-bottom: 0.1rem !important;
-        margin-bottom: 0 !important;
-    }
-
-    /* B. MENCEGAH DROPDOWN MENTOK KE BAWAH (ANTI-CLIPPING) */
-    
-    /* Mengizinkan render popover keluar dari kontainer sidebar */
-    [data-testid="stSidebar"], 
-    [data-testid="stSidebarUserContent"],
-    .stSelectbox, 
-    div[data-baseweb="select"] {
-        overflow: visible !important;
-    }
-    
-    /* Menurunkan tinggi maksimal dropdown menjadi 180px agar jauh dari batas taskbar Windows.
-       Ini akan memaksa sistem mengaktifkan guliran (scroll) LEBIH AWAL sehingga menu ke-5 & 6 aman */
+    /* B. PENGATURAN DROPDOWN POPOVER */
+    /* Kita kembalikan perilaku normal portal, hanya batasi tingginya agar rapi */
     div[data-baseweb="popover"] ul, 
     div[role="listbox"], 
     ul[role="listbox"] {
-        max-height: 180px !important; 
+        max-height: 250px !important; 
         overflow-y: auto !important;
-        z-index: 999999 !important;
     }
     </style>
 """, unsafe_allow_html=True)
