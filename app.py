@@ -28,28 +28,27 @@ st.set_page_config(
 )
 
 # =====================================================================
-# 2. CONTROLLER THEME ENGINE (LIGHT & DARK MODE COALITION)
+# 2. CONTROLLER THEME ENGINE (POJOK KANAN ATAS)
+# Solusi agar tidak ganda di Sidebar & mematuhi instruksi pojok kanan
 # =====================================================================
 if 'app_theme' not in st.session_state:
     st.session_state.app_theme = 'Dark Mode'
 
-# Mengatur letak pemilihan mode tampilan di bagian atas kontrol sidebar
-with st.sidebar:
-    st.markdown("<p style='font-weight: bold; margin-bottom: 2px;'>🌓 Mode Tampilan:</p>", unsafe_allow_html=True)
-    chosen_theme = st.radio(
-        "Select Theme",
+# Render pemilih mode tampilan di ujung kanan atas Main Area
+top_col1, top_col2 = st.columns([8.5, 1.5])
+with top_col2:
+    st.session_state.app_theme = st.selectbox(
+        "Tema Sistem",
         options=["Dark Mode", "Light Mode"],
         index=0 if st.session_state.app_theme == "Dark Mode" else 1,
-        label_visibility="collapsed",
-        horizontal=True
+        label_visibility="collapsed"
     )
-    st.session_state.app_theme = chosen_theme
-    st.markdown("---")
 
-# Inject CSS dinamis agar seluruh teks dashboard & dropdown terbaca sempurna
+# Inject CSS dinamis berdasarkan mode yang dipilih
 if st.session_state.app_theme == "Light Mode":
     st.markdown("""
         <style>
+        /* BASE LAYER LIGHT MODE */
         html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
             background-color: #F8FAFC !important;
             color: #0F172A !important;
@@ -57,7 +56,6 @@ if st.session_state.app_theme == "Light Mode":
         [data-testid="stSidebar"] {
             background-color: #F1F5F9 !important;
         }
-        /* Memastikan seluruh teks teks di sidebar & main page berwarna gelap di light mode */
         [data-testid="stSidebar"] .stMarkdown, [data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] label {
             color: #0F172A !important;
         }
@@ -75,28 +73,30 @@ if st.session_state.app_theme == "Light Mode":
         .module-card h3 { color: #B45309 !important; }
         .module-card p { color: #475569 !important; }
         
-        /* SOLUSI READABILITY DROPDOWN MENU DI LIGHT MODE */
+        /* FIX VISIBILITAS DROPDOWN (ANTI-BLIND/TIDAK TERLIHAT) */
         div[data-baseweb="select"] > div {
             background-color: #FFFFFF !important;
             color: #0F172A !important;
             border: 1px solid #CBD5E1 !important;
         }
-        div[data-baseweb="popover"] {
+        div[data-baseweb="popover"], div[data-baseweb="popover"] ul {
             background-color: #FFFFFF !important;
         }
-        div[data-baseweb="popover"] li, div[role="option"] {
-            background-color: #FFFFFF !important;
+        /* Menargetkan tag terdalam (span/p/div) agar teks dropdown terang */
+        div[data-baseweb="popover"] li, div[data-baseweb="popover"] li span, div[data-baseweb="popover"] li p {
             color: #0F172A !important;
+            background-color: transparent !important;
         }
-        div[data-baseweb="popover"] li:hover, div[role="option"]:hover {
+        div[data-baseweb="popover"] li:hover, div[data-baseweb="popover"] li:hover span {
             background-color: #E2E8F0 !important;
-            color: #0F172A !important;
+            color: #1E3A8A !important;
         }
         </style>
     """, unsafe_allow_html=True)
 else:
     st.markdown("""
         <style>
+        /* BASE LAYER DARK MODE */
         html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
             background-color: #0b0c0c !important;
             color: #cfd2c3 !important;
@@ -112,31 +112,33 @@ else:
             border-left: 6px solid #00B4D8 !important;
         }
         
-        /* SOLUSI READABILITY DROPDOWN MENU DI DARK MODE */
+        /* FIX VISIBILITAS DROPDOWN (ANTI-BLIND/TIDAK TERLIHAT) */
         div[data-baseweb="select"] > div {
             background-color: #1E293B !important;
             color: #FFFFFF !important;
+            border: 1px solid #334155 !important;
         }
-        div[data-baseweb="popover"] {
+        div[data-baseweb="popover"], div[data-baseweb="popover"] ul {
             background-color: #1E293B !important;
         }
-        div[data-baseweb="popover"] li, div[role="option"] {
-            background-color: #1E293B !important;
+        /* Menargetkan tag terdalam (span/p/div) agar teks dropdown terang */
+        div[data-baseweb="popover"] li, div[data-baseweb="popover"] li span, div[data-baseweb="popover"] li p {
             color: #FFFFFF !important;
+            background-color: transparent !important;
         }
-        div[data-baseweb="popover"] li:hover, div[role="option"]:hover {
+        div[data-baseweb="popover"] li:hover, div[data-baseweb="popover"] li:hover span {
             background-color: #334155 !important;
-            color: #FFFFFF !important;
+            color: #00B4D8 !important;
         }
         </style>
     """, unsafe_allow_html=True)
 
 # =====================================================================
-# 3. GLOBAL FIX: DROPDOWN MENTOK & BISA DIGULIR (ANTI-CLIPPING)
+# 3. GLOBAL FIX: MENCEGAH DROPDOWN MENTOK & MENGAKTIFKAN SCROLL
 # =====================================================================
 st.markdown("""
     <style>
-    /* Mengizinkan sidebar merender popover keluar dari containernya */
+    /* Mengizinkan render popover keluar dari kontainer sidebar */
     [data-testid="stSidebar"], 
     [data-testid="stSidebarUserContent"],
     .stSelectbox, 
@@ -144,14 +146,11 @@ st.markdown("""
         overflow: visible !important;
     }
     
-    /* 
-       OBAT UTAMA: Membatasi tinggi popover dropdown menu agar TIDAK MENTOK ke bawah layar 
-       dan memaksa kemunculan scrollbar vertikal otomatis agar opsi 5 & 6 bisa digulir.
-    */
+    /* Membatasi tinggi popover dropdown dan menyalakan scroll otomatis */
     div[data-baseweb="popover"] ul, 
     div[role="listbox"], 
     ul[role="listbox"] {
-        max-height: 210px !important;
+        max-height: 220px !important;
         overflow-y: auto !important;
         z-index: 999999 !important;
     }
@@ -277,7 +276,7 @@ page_diurnal = st.Page(
     icon="🌤️"
 )
 
-# Struktur Navigasi Utama dikelompokkan secara rapi di bagian atas sidebar
+# Struktur Navigasi Utama dikelompokkan secara rapi
 pg = st.navigation({
     "MAIN SYSTEM": [page_home],
     "OPERATIONAL MODULES": [page_metar, page_acs, page_diurnal]
