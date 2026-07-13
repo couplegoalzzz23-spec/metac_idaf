@@ -1,389 +1,516 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
-import plotly.express as px
 import os
+import gc
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import streamlit as st
 
 # ==========================================
-# 1. PAGE CONFIGURATION & UI STYLING
+# 1. KONFIGURASI HALAMAN & ANTARMUKA (UI)
 # ==========================================
 st.set_page_config(
-    page_title="TNI AU Diurnal Meteorological Dashboard",
+    page_title="ACS Meteorological Master Dashboard",
     page_icon="🌤️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-st.markdown("""
+# Toggle Tema di Sidebar
+theme_mode = st.sidebar.radio("🌓 Mode Tampilan:", ["Dark Mode", "Light Mode"], horizontal=True)
+is_dark = theme_mode == "Dark Mode"
+
+# Warna Dinamis Berdasarkan Tema
+bg_color_main = "#0E1117" if is_dark else "#FFFFFF"
+text_color_main = "#FAFAFA" if is_dark else "#0F1116"
+panel_bg = "#1E2A38" if is_dark else "#F8F9FA"
+border_col = "#334155" if is_dark else "#E9ECEF"
+chart_template = "plotly_dark" if is_dark else "plotly_white"
+
+st.markdown(f"""
     <style>
-        .main .block-container { padding-top: 2rem; padding-bottom: 2rem; }
-        .bmkg-header {
-            background: linear-gradient(135deg, #0B3C5D 0%, #328CC1 100%);
-            padding: 20px; border-radius: 10px; color: white; margin-bottom: 25px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .bmkg-header h1 { margin: 0; font-size: 28px; font-weight: 700; }
-        .bmkg-header p { margin: 5px 0 0 0; font-size: 14px; opacity: 0.9; }
-        div[data-testid="stMetricValue"] { color: #1E3A8A; font-size: 24px;}
+        .main .block-container {{ padding-top: 1.5rem; padding-bottom: 2rem; }}
+        div[data-testid="stMetricValue"] {{ color: #0B3C5D; font-size: 24px; font-weight: bold; }}
+        .stAlert {{ border-radius: 8px; }}
+        .wmo-table {{ width: 100%; border-collapse: collapse; font-size: 13px; color: {text_color_main}; }}
+        .wmo-table th {{ background-color: #0B3C5D; color: white; padding: 8px; text-align: left; border: 1px solid #334155; }}
+        .wmo-table td {{ padding: 8px; border-bottom: 1px solid {border_col}; border-left: 1px solid {border_col}; border-right: 1px solid {border_col}; }}
     </style>
 """, unsafe_allow_html=True)
 
-MONTHS_ID = [
-    "Januari", "Februari", "Maret", "April", "Mei", "Juni", 
-    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
-]
+PALET_KATEGORI = ["#0074D9", "#FF4136", "#2ECC40", "#FF851B", "#B10DC9", "#FFDC00", "#39CCCC", "#F012BE"]
+PALET_MUSIM_BAR = ["#4B0082", "#00A86B", "#007FFF", "#FF8C00"]
+MONTHS_ID = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
+
+MUSIM_MAP = {
+    "Desember": "DJF (Desember - Januari - Februari) | Monsun Asia / Musim Hujan",
+    "Januari": "DJF (Desember - Januari - Februari) | Monsun Asia / Musim Hujan",
+    "Februari": "DJF (Desember - Januari - Februari) | Monsun Asia / Musim Hujan",
+    "Maret": "MAM (Maret - April - Mei) | Peralihan I / Pancaroba",
+    "April": "MAM (Maret - April - Mei) | Peralihan I / Pancaroba",
+    "Mei": "MAM (Maret - April - Mei) | Peralihan I / Pancaroba",
+    "Juni": "JJA (Juni - Juli - Agustus) | Monsun Australia / Kemarau",
+    "Juli": "JJA (Juni - Juli - Agustus) | Monsun Australia / Kemarau",
+    "Agustus": "JJA (Juni - Juli - Agustus) | Monsun Australia / Kemarau",
+    "September": "SON (September - Oktober - November) | Peralihan II / Pancaroba",
+    "Oktober": "SON (September - Oktober - November) | Peralihan II / Pancaroba",
+    "November": "SON (September - Oktober - November) | Peralihan II / Pancaroba"
+}
+
+SEKTOR_DETIL_MAP = {
+    "35-36-01": "35-36-01 (N) | Utara [350°-10°]",
+    "02-03-04": "02-03-04 (NNE) | Utara-Timur Laut [20°-40°]",
+    "05-06-07": "05-06-07 (ENE) | Timur-Timur Laut [50°-70°]",
+    "08-09-10": "08-09-10 (E) | Timur [80°-100°]",
+    "11-12-13": "11-12-13 (ESE) | Timur-Tenggara [110°-130°]",
+    "14-15-16": "14-15-16 (SSE) | Selatan-Tenggara [140°-160°]",
+    "17-18-19": "17-18-19 (S) | Selatan [170°-190°]",
+    "20-21-22": "20-21-22 (SSW) | Selatan-Barat Daya [200°-220°]",
+    "23-24-25": "23-24-25 (WSW) | Barat-Barat Daya [230°-250°]",
+    "26-27-28": "26-27-28 (W) | Barat [260°-280°]",
+    "29-30-31": "29-30-31 (WNW) | Barat-Barat Laut [290°-310°]",
+    "32-33-34": "32-33-34 (NNW) | Utara-Barat Laut [320°-340°]"
+}
 
 # ==========================================
-# 2. SMART DATA PARSERS (ROBUST EXTRACTION)
+# 2. DATA PROCESSING ENGINE
 # ==========================================
-# Algoritma ini didesain untuk membaca format laporan legacy BMKG yang kompleks
+def clean_num_str(val):
+    if pd.isna(val): return ""
+    return str(val).strip().replace(',', '.').split('.')[0]
 
-def parse_hourly_freq(df, col_names):
-    """Membaca tabel frekuensi per jam (Visibilitas, Cloud Base, Temp)."""
-    valid_data = []
-    for idx, row in df.iterrows():
+def parse_synoptic(df):
+    valid_rows = []
+    for _, row in df.iterrows():
         try:
-            val0 = str(row.iloc[0]).strip()
-            val1 = str(row.iloc[1]).strip()
-            # Cek jika kolom 0 adalah jam (0-23) dan kolom 1 adalah tahun
-            if val0.replace('.','',1).isdigit() and val1.isdigit():
-                hr = float(val0)
-                yr = float(val1)
-                if 0 <= hr <= 23 and 2000 < yr < 2100:
-                    valid_data.append(row.values)
+            val0 = clean_num_str(row.iloc[0])
+            val1 = clean_num_str(row.iloc[1])
+            if not (val0.lstrip('-').isdigit() and val1.lstrip('-').isdigit()):
+                continue
+            v0, v1 = int(val0), int(val1)
+            rest_vals = [str(x).replace(',', '.') if pd.notna(x) else np.nan for x in row.iloc[2:].values]
+            if 2000 <= v0 <= 2100 and 1 <= v1 <= 31:
+                valid_rows.append([v0, v1] + rest_vals)
+            elif 1 <= v0 <= 31 and 2000 <= v1 <= 2100:
+                valid_rows.append([v1, v0] + rest_vals)
         except Exception:
-            pass
-    if not valid_data: return pd.DataFrame()
-    parsed_df = pd.DataFrame(valid_data).iloc[:, :len(col_names)]
-    parsed_df.columns = col_names
-    # Convert all except year to float
-    for c in col_names:
-        parsed_df[c] = pd.to_numeric(parsed_df[c], errors='coerce').fillna(0)
+            continue
+    if not valid_rows: return pd.DataFrame()
+    parsed_df = pd.DataFrame(valid_rows)
+    base_cols = ["Tahun", "Tanggal", "00", "03", "06", "09", "12", "15", "18", "21", "Daily_Mean", "Max", "Min"]
+    parsed_df = parsed_df.iloc[:, :len(base_cols)]
+    parsed_df.columns = base_cols[:len(parsed_df.columns)]
+    for c in parsed_df.columns:
+        parsed_df[c] = pd.to_numeric(parsed_df[c], errors='coerce')
     return parsed_df
 
-def parse_3hourly(df):
-    """Membaca matriks synoptic 3-jam-an (RH & TempMaxMin)."""
+def parse_hourly_freq(df, col_names):
     valid_data = []
-    for idx, row in df.iterrows():
+    for _, row in df.iterrows():
         try:
-            val0 = str(row.iloc[0]).strip()
-            val1 = str(row.iloc[1]).strip()
-            # Kolom 0 = Tahun, Kolom 1 = Tanggal (1-31)
-            if val0.isdigit() and val1.isdigit():
-                yr = float(val0)
-                dt = float(val1)
-                if 2000 < yr < 2100 and 1 <= dt <= 31:
-                    valid_data.append(row.values)
+            val0 = clean_num_str(row.iloc[0])
+            val1 = clean_num_str(row.iloc[1])
+            if not (val0.lstrip('-').isdigit() and val1.lstrip('-').isdigit()):
+                continue
+            v0, v1 = int(val0), int(val1)
+            rest_vals = [str(x).replace(',', '.') if pd.notna(x) else np.nan for x in row.iloc[2:].values]
+            if 0 <= v0 <= 23 and 2000 <= v1 <= 2100:
+                valid_data.append([v1, v0] + rest_vals)
+            elif 2000 <= v0 <= 2100 and 0 <= v1 <= 23:
+                valid_data.append([v0, v1] + rest_vals)
         except Exception:
-            pass
+            continue
     if not valid_data: return pd.DataFrame()
-    parsed_df = pd.DataFrame(valid_data).iloc[:, :13]
-    parsed_df.columns = ['Tahun', 'Tanggal', '00', '03', '06', '09', '12', '15', '18', '21', 'Mean', 'Max', 'Min']
+    parsed_df = pd.DataFrame(valid_data).iloc[:, :len(col_names)]
+    parsed_df.columns = col_names[:len(parsed_df.columns)]
     for c in parsed_df.columns:
-        parsed_df[c] = pd.to_numeric(parsed_df[c], errors='coerce').fillna(0)
+        parsed_df[c] = pd.to_numeric(parsed_df[c], errors='coerce')
     return parsed_df
 
 def parse_wind(df):
-    """Membaca tabel Wind Rose 30-sektor."""
     valid_data = []
     current_year = 2021
-    
-    wind_sectors = ['35-36-01', '02-03-04', '05-06-07', '08-09-10', '11-12-13', '14-15-16', 
-                    '17-18-19', '20-21-22', '23-24-25', '26-27-28', '29-30-31', '32-33-34']
-    
-    for idx, row in df.iterrows():
-        val0 = str(row.iloc[0]).strip()
-        val1 = str(row.iloc[1]).strip().replace(' ', '') # Hapus spasi agar seragam
-        
-        if val0.isdigit() and len(val0) == 4:
-            current_year = int(val0)
+    wind_sectors = list(SEKTOR_DETIL_MAP.keys())
+    for _, row in df.iterrows():
+        try:
+            val0 = clean_num_str(row.iloc[0])
+            val1 = str(row.iloc[1]).strip().replace(" ", "").upper() if pd.notna(row.iloc[1]) else ""
+            val2_str = str(row.iloc[2]).strip().replace(" ", "").upper() if len(row) > 2 and pd.notna(row.iloc[2]) else ""
             
-        if val1 == 'CALM' or val1 == 'VARIABLE' or val1 in wind_sectors:
-            yr = int(val0) if val0.isdigit() and len(val0)==4 else current_year
-            new_row = [yr, val1] + list(row.iloc[2:12].values)
-            valid_data.append(new_row)
-            
+            if val0.isdigit() and len(val0) == 4 and 2000 <= int(val0) <= 2100:
+                current_year = int(val0)
+                
+            target_dir, start_col_idx = None, 2
+            if val1 in ["CALM", "VARIABLE"] or val1 in wind_sectors:
+                target_dir, start_col_idx = val1, 2
+            elif val2_str in ["CALM", "VARIABLE"] or val2_str in wind_sectors:
+                target_dir, start_col_idx = val2_str, 3
+                
+            if target_dir:
+                yr = int(val0) if (val0.isdigit() and len(val0) == 4 and 2000 <= int(val0) <= 2100) else current_year
+                vals = [str(x).replace(',', '.') if pd.notna(x) else np.nan for x in row.iloc[start_col_idx:].values]
+                valid_data.append([yr, target_dir] + vals)
+        except Exception:
+            continue
     if not valid_data: return pd.DataFrame()
-    parsed_df = pd.DataFrame(valid_data).iloc[:, :12]
-    parsed_df.columns = ['Tahun', 'Direction', '1-5', '6-10', '11-15', '16-20', '21-25', '26-30', '31-35', '36-45', '>45', 'Total']
+    parsed_df = pd.DataFrame(valid_data)
+    expected_cols = ["Tahun", "Direction", "1-5", "6-10", "11-15", "16-20", "21-25", "26-30", "31-35", "36-45", ">45", "Total"]
+    parsed_df = parsed_df.iloc[:, :len(expected_cols)]
+    parsed_df.columns = expected_cols[:len(parsed_df.columns)]
     for c in parsed_df.columns[2:]:
-        parsed_df[c] = pd.to_numeric(parsed_df[c], errors='coerce').fillna(0)
+        parsed_df[c] = pd.to_numeric(parsed_df[c], errors='coerce')
     return parsed_df
 
-# ==========================================
-# 3. DATA LOADER ENGINE
-# ==========================================
 @st.cache_data(show_spinner=False)
 def load_all_data():
-    datasets = {
-        'RH': pd.DataFrame(), 'TempMaxMin': pd.DataFrame(),
-        'HS': pd.DataFrame(), 'Vis': pd.DataFrame(), 'Wind': pd.DataFrame()
-    }
-    
+    datasets = {k: pd.DataFrame() for k in ["TempMaxMin", "TempFreq", "RH", "HS", "Vis", "Wind"]}
+    get_path = lambda f: f if os.path.exists(f) else (os.path.join("data", f) if os.path.exists(os.path.join("data", f)) else f)
     files = {
-        'RH': ('RH_2021-2025.xlsx', parse_3hourly),
-        'TempMaxMin': ('TempMaxMin_2021-2025.xlsx', parse_3hourly),
-        'HS': ('HS_2021-2025.xlsx', lambda df: parse_hourly_freq(df, ['Jam', 'Tahun', '<150', '<200', '<300', '<500', '<1000', '<1500'])),
-        'Vis': ('Vis_2021-2025.xlsx', lambda df: parse_hourly_freq(df, ['Jam', 'Tahun', '<200', '<400', '<600', '<800', '<1500', '<1800', '<3000', '<5000', '<8000'])),
-        'Wind': ('Wind_2021-2025.xlsx', parse_wind)
+        "TempMaxMin": (get_path("TempMaxMin_2021-2025.xlsx"), parse_synoptic),
+        "TempFreq": (get_path("Temp_2021-2025.xlsx"), lambda df: parse_hourly_freq(df, ["Tahun", "Jam", "5 - 0", "0 - 5", "5 - 10", "10 - 15", "15 - 20", "20 - 25", "25 - 30", "30 - 35", "> 35"])),
+        "RH": (get_path("RH_2021-2025.xlsx"), parse_synoptic),
+        "HS": (get_path("HS_2021-2025.xlsx"), lambda df: parse_hourly_freq(df, ["Tahun", "Jam", "<150", "<200", "<300", "<500", "<1000", "<1500"])),
+        "Vis": (get_path("Vis_2021-2025.xlsx"), lambda df: parse_hourly_freq(df, ["Tahun", "Jam", "<200", "<400", "<600", "<800", "<1500", "<1800", "<3000", "<5000", "<8000"])),
+        "Wind": (get_path("Wind_2021-2025.xlsx"), parse_wind)
     }
-    
-    for key, (filename, parser) in files.items():
-        if os.path.exists(filename):
+    for key, (filepath, parser) in files.items():
+        if os.path.exists(filepath):
             all_sheets = []
+            xls = None
             try:
-                xls = pd.ExcelFile(filename, engine='openpyxl')
-                for month_idx, sheet in enumerate(MONTHS_ID):
-                    if sheet in xls.sheet_names:
-                        df_raw = pd.read_excel(xls, sheet_name=sheet, header=None)
-                        df_parsed = parser(df_raw)
-                        if not df_parsed.empty:
-                            df_parsed['Bulan'] = sheet
-                            df_parsed['Bulan_Idx'] = month_idx + 1
-                            all_sheets.append(df_parsed)
-                if all_sheets:
+                xls = pd.ExcelFile(filepath, engine='openpyxl')
+                for m_idx, m_name in enumerate(MONTHS_ID):
+                    matched_sheet = next((s for s in xls.sheet_names if s.strip().lower().startswith(m_name.lower()[:3]) or f"{m_idx+1:02d}" in s), None)
+                    if matched_sheet:
+                        df_p = parser(pd.read_excel(xls, sheet_name=matched_sheet, header=None))
+                        if not df_p.empty:
+                            df_p["Bulan"], df_p["Bulan_Idx"] = m_name, m_idx + 1
+                            all_sheets.append(df_p)
+                if all_sheets: 
                     datasets[key] = pd.concat(all_sheets, ignore_index=True)
             except Exception as e:
-                st.error(f"Error memproses {filename}: {str(e)}")
-                
+                st.sidebar.error(f"⚠️ Gagal load {filepath}: {str(e)}")
+            finally:
+                if xls:
+                    xls.close()
+    gc.collect()
     return datasets
 
-with st.spinner("Membaca dan menstrukturisasi ulang data Excel WMO..."):
+with st.spinner("🔄 Sinkronisasi Basis Data..."):
     data = load_all_data()
 
 # ==========================================
-# 4. SIDEBAR & FILTERING
+# 3. SIDEBAR NAVIGATION CONTROLS
 # ==========================================
-st.sidebar.image("https://www.bmkg.go.id/asset/img/logo/logo-TNI AU.png", width=90)
-st.sidebar.markdown("<h2 style='color:white; margin-top:10px;'>Navigasi Data</h2>", unsafe_allow_html=True)
+st.sidebar.markdown("### 🧭 Panel Control")
 st.sidebar.markdown("---")
-
 param_options = {
-    "Temperature": "Suhu Udara (°C) [Synoptic]",
-    "RH": "Kelembapan Relatif (%) [Synoptic]",
-    "Visibility": "Jarak Pandang (Km) [Frequencies]",
-    "Cloud Base (HS)": "Tinggi Dasar Awan [Frequencies]",
-    "Wind": "Mawar Angin (Wind Rose)"
+    "Home": "🏠 Beranda Utama",
+    "TempMaxMin": "1. Suhu Udara Synoptic (°C)", 
+    "TempFreq": "2. Distribusi Frekuensi Suhu (%)",
+    "RH": "3. Kelembapan Relatif / RH (%)", 
+    "Vis": "4. Jarak Pandang / Visibility (%)",
+    "HS": "5. HS / Tinggi Dasar Awan (%)", 
+    "Wind": "6. Sirkulasi Wind & Analisis Monsun"
 }
-selected_param = st.sidebar.selectbox("Pilih Parameter Utama", list(param_options.keys()), format_func=lambda x: param_options[x])
-month_choice = st.sidebar.selectbox("Pilih Bulan", ["Semua Bulan"] + MONTHS_ID)
-available_years = [2021, 2022, 2023, 2024, 2025]
-selected_year = st.sidebar.selectbox("Pilih Tahun", ["Semua Tahun"] + available_years)
 
-st.sidebar.markdown("---")
-st.sidebar.caption("Sistem Pengekstrak Data Laporan Silang WMO otomatis dirancang untuk Dashboard Interaktif.")
+selected_param = st.sidebar.selectbox("Navigasi Sistem:", list(param_options.keys()), format_func=lambda x: param_options[x])
 
-def filter_df(df):
+# Sembunyikan filter bulan dan tahun jika di menu Home
+if selected_param != "Home":
+    month_choice = st.sidebar.selectbox("Filter Analisis Bulan:", ["Semua Bulan"] + MONTHS_ID)
+    selected_year = st.sidebar.selectbox("Filter Analisis Tahun:", ["Semua Tahun"] + [2021, 2022, 2023, 2024, 2025])
+
+def filter_df(df, ignore_month=False):
     if df.empty: return df
     res = df.copy()
-    if month_choice != "Semua Bulan":
-        res = res[res['Bulan'] == month_choice]
-    if selected_year != "Semua Tahun":
-        res = res[res['Tahun'] == int(selected_year)]
+    if not ignore_month and month_choice != "Semua Bulan": res = res[res["Bulan"] == month_choice]
+    if selected_year != "Semua Tahun": res = res[res["Tahun"] == int(selected_year)]
     return res
 
 # ==========================================
-# 5. HEADER & KPI METRICS
+# 4. TATA LETAK GRAFIK & FUNGSI BANTU
 # ==========================================
-st.markdown("""
-    <div class="bmkg-header">
-        <h1>Metac_IDAF - Analisis Diurnal & Frekuensi Cuaca</h1>
-        <p>Sistem Ekstraksi Otomatis & Visualisasi Data Permukaan Historis 2021-2025</p>
-    </div>
-""", unsafe_allow_html=True)
-
-kpi_cols = st.columns(4)
-# Calculate quick KPIs based on available filtered data
-with kpi_cols[0]:
-    t_df = filter_df(data['TempMaxMin'])
-    val = f"{t_df['Mean'].mean():.1f} °C" if not t_df.empty else "N/A"
-    st.metric("Avg Mean Temperature", val)
-with kpi_cols[1]:
-    r_df = filter_df(data['RH'])
-    val = f"{r_df['Mean'].mean():.1f} %" if not r_df.empty else "N/A"
-    st.metric("Avg Relative Humidity", val)
-with kpi_cols[2]:
-    w_df = filter_df(data['Wind'])
-    if not w_df.empty:
-        calm_pct = w_df[w_df['Direction'] == 'CALM']['Total'].mean()
-        val = f"{calm_pct:.1f} %"
-    else: val = "N/A"
-    st.metric("Rerata Kondisi CALM (Angin)", val)
-with kpi_cols[3]:
-    v_df = filter_df(data['Vis'])
-    val = f"{v_df['<8000'].mean():.1f} %" if (not v_df.empty and '<8000' in v_df.columns) else "N/A"
-    st.metric("Frekuensi Visibilitas < 8Km", val)
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# ==========================================
-# 6. VISUALIZATIONS
-# ==========================================
-def add_watermark(fig):
-    fig.update_layout(margin=dict(l=20, r=20, t=50, b=50), template="plotly_white")
+def apply_wmo_style(fig, title_text, x_label, y_label):
+    grid_col = "rgba(255,255,255,0.2)" if is_dark else "rgba(211,211,211,0.5)"
+    font_col = "#60A5FA" if is_dark else "#0B3C5D"
+    legend_bg = "rgba(14,17,23,0.85)" if is_dark else "rgba(255, 255, 255, 0.85)"
+    
+    fig.update_layout(
+        title=dict(text=f"<b>{title_text}</b>", font=dict(size=17, color=font_col)),
+        xaxis_title=f"<b>{x_label}</b>", yaxis_title=f"<b>{y_label}</b>",
+        margin=dict(l=50, r=160, t=70, b=80),
+        template=chart_template, 
+        hovermode="x unified",
+        legend=dict(
+            title="<b>Komponen Data:</b>",
+            orientation="v", yanchor="top", y=1, xanchor="left", x=1.02,
+            bgcolor=legend_bg, bordercolor=grid_col, borderwidth=1
+        ),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)"
+    )
+    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor=grid_col)
+    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor=grid_col)
     return fig
 
-if selected_param == "Temperature":
-    st.subheader("Pola Suhu Udara Synoptic (3-Jam-an UTC)")
-    df_t = filter_df(data['TempMaxMin'])
-    if df_t.empty:
-        st.warning("Data Suhu belum/tidak diunggah.")
-    else:
-        # Melt data untuk merubah format kolom jam menjadi baris agar mudah di-plot
-        df_melt = df_t.melt(id_vars=['Tahun', 'Bulan_Idx', 'Tanggal'], 
-                            value_vars=['00', '03', '06', '09', '12', '15', '18', '21'],
-                            var_name='Jam_UTC', value_name='Suhu')
-        
-        # Hitung rerata berdasarkan Jam
-        agg_df = df_melt.groupby('Jam_UTC')['Suhu'].mean().reset_index()
-        
-        fig = px.line(agg_df, x='Jam_UTC', y='Suhu', markers=True, 
-                      title=f"Kurva Suhu Diurnal - {month_choice} ({selected_year})",
-                      labels={'Jam_UTC': 'Jam Synoptic (UTC)', 'Suhu': 'Temperatur (°C)'})
-        fig.update_traces(line=dict(color='#E53935', width=3))
-        st.plotly_chart(add_watermark(fig), use_container_width=True)
-
-elif selected_param == "RH":
-    st.subheader("Pola Kelembapan Relatif (RH) Synoptic")
-    df_r = filter_df(data['RH'])
-    if df_r.empty:
-        st.warning("Data RH belum/tidak diunggah.")
-    else:
-        df_melt = df_r.melt(id_vars=['Tahun', 'Bulan_Idx', 'Tanggal'], 
-                            value_vars=['00', '03', '06', '09', '12', '15', '18', '21'],
-                            var_name='Jam_UTC', value_name='RH')
-        agg_df = df_melt.groupby('Jam_UTC')['RH'].mean().reset_index()
-        
-        fig = px.line(agg_df, x='Jam_UTC', y='RH', markers=True,
-                      title=f"Kurva RH Diurnal - {month_choice} ({selected_year})",
-                      labels={'Jam_UTC': 'Jam Synoptic (UTC)', 'RH': 'Kelembapan (%)'})
-        fig.update_traces(line=dict(color='#1E88E5', width=3))
-        fig.update_layout(yaxis=dict(range=[40, 105]))
-        st.plotly_chart(add_watermark(fig), use_container_width=True)
-
-elif selected_param == "Visibility":
-    st.subheader("Meteogram Fluktuasi Diurnal Jarak Pandang (Visibility)")
-    df_v = filter_df(data['Vis'])
-    if df_v.empty:
-        st.warning("Data Visibilitas tidak ditemukan.")
-    else:
-        # Rata-rata persentase frekuensi per jam dan pastikan terurut jam 0-23
-        cols = ['<200', '<400', '<600', '<800', '<1500', '<1800', '<3000', '<5000', '<8000']
-        agg_v = df_v.groupby('Jam')[cols].mean().reset_index().sort_values('Jam')
-        
-        # Melt untuk grafik fluktuasi/meteogram
-        hm_df = agg_v.melt(id_vars='Jam', value_vars=cols, var_name='Kategori_Vis', value_name='Frekuensi')
-        
-        # PERBAIKAN: Gunakan palet warna kontras tinggi yang sangat mencolok agar mudah dibaca saat garis menumpuk
-        vibrant_palette = [
-            "#D32F2F", "#1976D2", "#388E3C", "#F57C00", 
-            "#7B1FA2", "#0097A7", "#E64A19", "#5D4037", "#111111"
-        ]
-        
-        fig = px.line(hm_df, x='Jam', y='Frekuensi', color='Kategori_Vis', markers=True,
-                      title=f"Meteogram Fluktuasi Frekuensi Jarak Pandang - {month_choice} ({selected_year})",
-                      labels={'Jam': 'Jam Synoptic (UTC)', 'Frekuensi': 'Frekuensi Kejadian (%)', 'Kategori_Vis': 'Batas Visibilitas (m)'},
-                      color_discrete_sequence=vibrant_palette)
-        
-        fig.update_traces(line=dict(width=3), marker=dict(size=7))
-        fig.update_layout(
-            hovermode="x unified",
-            xaxis=dict(tickmode='linear', tick0=0, dtick=1, range=[-0.5, 23.5]),
-            yaxis=dict(rangemode='tozero', gridcolor='#E0E0E0'),
-            legend=dict(title="Kategori Visibilitas", orientation="v", yanchor="top", y=1, xanchor="left", x=1.02)
+def create_wind_rose_figure(rose_df, title_text):
+    dir_map = {k: v.split("(")[1].split(")")[0] for k, v in SEKTOR_DETIL_MAP.items()}
+    df_clean = rose_df[~rose_df["Direction"].isin(["CALM", "VARIABLE"])].copy()
+    if df_clean.empty: return None
+    
+    df_clean["Arah Mata Angin"] = df_clean["Direction"].map(dir_map)
+    speeds = ["1-5", "6-10", "11-15", "16-20", "21-25", "26-30", "31-35", "36-45", ">45"]
+    avail_speeds = [s for s in speeds if s in df_clean.columns]
+    
+    melt_rose = df_clean.melt(id_vars=["Arah Mata Angin"], value_vars=avail_speeds, var_name="Kecepatan (Knot)", value_name="Frekuensi (%)")
+    agg_rose = melt_rose.groupby(["Arah Mata Angin", "Kecepatan (Knot)"])["Frekuensi (%)"].mean(numeric_only=True).reset_index()
+    
+    fig_polar = px.bar_polar(
+        agg_rose, r="Frekuensi (%)", theta="Arah Mata Angin", color="Kecepatan (Knot)",
+        color_discrete_sequence=["#001f3f", "#0074D9", "#2ECC40", "#FFDC00", "#FF851B", "#FF4136", "#F012BE", "#B10DC9", "#111111"] if not is_dark else ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#14B8A6", "#F97316", "#FFFFFF"],
+        category_orders={"Kecepatan (Knot)": speeds}, template=chart_template
+    )
+    fig_polar = apply_wmo_style(fig_polar, title_text, "", "")
+    grid_col = "rgba(255,255,255,0.2)" if is_dark else "rgba(211,211,211,0.5)"
+    fig_polar.update_layout(
+        legend=dict(title="<b>Kecepatan (Knot):</b>", orientation="v", yanchor="top", y=1, xanchor="left", x=1.08),
+        polar=dict(
+            bgcolor="rgba(0,0,0,0)",
+            angularaxis=dict(direction="clockwise", rotation=90, categoryorder="array", categoryarray=list(dir_map.values())),
+            radialaxis=dict(showgrid=True, gridcolor=grid_col, ticksuffix="%")
         )
-        st.plotly_chart(add_watermark(fig), use_container_width=True)
+    )
+    return fig_polar
 
-elif selected_param == "Cloud Base (HS)":
-    st.subheader("Meteogram Fluktuasi Diurnal Tinggi Dasar Awan (Ceiling)")
-    df_hs = filter_df(data['HS'])
-    if df_hs.empty:
-        st.warning("Data Cloud Base tidak ditemukan.")
-    else:
-        cols = ['<150', '<200', '<300', '<500', '<1000', '<1500']
-        agg_hs = df_hs.groupby('Jam')[cols].mean().reset_index().sort_values('Jam')
-        hm_df = agg_hs.melt(id_vars='Jam', value_vars=cols, var_name='Kategori_HS', value_name='Frekuensi')
-        
-        # PERBAIKAN: Gunakan palet warna kontras tinggi yang sangat mencolok agar mudah dibaca saat garis menumpuk
-        vibrant_palette_hs = [
-            "#E65100", "#1E88E5", "#00897B", "#8E24AA", "#C2185B", "#37474F"
-        ]
-        
-        fig = px.line(hm_df, x='Jam', y='Frekuensi', color='Kategori_HS', markers=True,
-                      title=f"Meteogram Fluktuasi Frekuensi Tinggi Dasar Awan - {month_choice} ({selected_year})",
-                      labels={'Jam': 'Jam Synoptic (UTC)', 'Frekuensi': 'Frekuensi Kejadian (%)', 'Kategori_HS': 'Tinggi Awan (ft)'},
-                      color_discrete_sequence=vibrant_palette_hs)
-        
-        fig.update_traces(line=dict(width=3), marker=dict(size=7))
-        fig.update_layout(
-            hovermode="x unified",
-            xaxis=dict(tickmode='linear', tick0=0, dtick=1, range=[-0.5, 23.5]),
-            yaxis=dict(rangemode='tozero', gridcolor='#E0E0E0'),
-            legend=dict(title="Kategori Ceiling (ft)", orientation="v", yanchor="top", y=1, xanchor="left", x=1.02)
-        )
-        st.plotly_chart(add_watermark(fig), use_container_width=True)
+def render_icao_interpretation(title, content, highlight):
+    # Dynamic styling for dark/light mode
+    bg_div = "#16202B" if is_dark else "#F8F9FA"
+    text_div = "#E2E8F0" if is_dark else "#2C3E50"
+    title_div = "#60A5FA" if is_dark else "#0B3C5D"
+    border_left = "#3B82F6" if is_dark else "#0074D9"
+    border_div = "#334155" if is_dark else "#E9ECEF"
+    warn_text = "#F87171" if is_dark else "#D9534F"
+    dash_col = "#475569" if is_dark else "#CBD5E1"
+    
+    st.markdown(f"""
+        <div style="background-color: {bg_div}; border: 1px solid {border_div}; border-left: 5px solid {border_left}; padding: 16px 20px; border-radius: 8px; margin-top: 15px; margin-bottom: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.15);">
+            <div style="font-size: 14px; font-weight: 700; color: {title_div}; margin-bottom: 8px;">
+                📋 INTERPRETASI KLIMATOLOGIS OPERASIONAL ({title.upper()})
+            </div>
+            <div style="font-size: 13.5px; color: {text_div}; line-height: 1.6;">
+                {content}
+            </div>
+            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed {dash_col}; font-size: 13px; color: {warn_text}; font-weight: 600;">
+                ⚠️ Dampak Penerbangan (ICAO Annex 3 / BMKG): {highlight}
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
-elif selected_param == "Wind":
-    st.subheader("Mawar Angin (Wind Rose) Multi-sektor")
-    df_w = filter_df(data['Wind'])
-    if df_w.empty:
-        st.warning("Data Wind tidak ditemukan.")
-    else:
-        # Konversi nama sektor agar lebih cantik
-        dir_map = {
-            '35-36-01': 'Utara (N)', '02-03-04': 'Timur Laut (NNE)',
-            '05-06-07': 'Timur Laut (ENE)', '08-09-10': 'Timur (E)',
-            '11-12-13': 'Tenggara (ESE)', '14-15-16': 'Tenggara (SSE)',
-            '17-18-19': 'Selatan (S)', '20-21-22': 'Barat Daya (SSW)',
-            '23-24-25': 'Barat Daya (WSW)', '26-27-28': 'Barat (W)',
-            '29-30-31': 'Barat Laut (WNW)', '32-33-34': 'Barat Laut (NNW)'
-        }
-        
-        # PERBAIKAN: Urutan baku kompas meteorologi (Searah jarum jam)
-        compass_order = [
-            'Utara (N)', 'Timur Laut (NNE)', 'Timur Laut (ENE)', 'Timur (E)',
-            'Tenggara (ESE)', 'Tenggara (SSE)', 'Selatan (S)', 'Barat Daya (SSW)',
-            'Barat Daya (WSW)', 'Barat (W)', 'Barat Laut (WNW)', 'Barat Laut (NNW)'
-        ]
-        
-        # Filter out CALM & VARIABLE for Polar chart
-        rose_df = df_w[~df_w['Direction'].isin(['CALM', 'VARIABLE'])].copy()
-        
-        if not rose_df.empty:
-            rose_df['Direction_Label'] = rose_df['Direction'].map(dir_map)
+
+# ==========================================
+# 5. DISPLAY UTAMA & INTERPRETASI DINAMIS
+# ==========================================
+
+# 5.A. RENDER BERANDA UTAMA (HOME)
+if selected_param == "Home":
+    st.markdown("""
+        <div style="background: linear-gradient(135deg, #021B38 0%, #08335E 50%, #17548A 100%); 
+                    padding: 45px 30px; 
+                    border-radius: 12px; 
+                    color: white; 
+                    text-align: center; 
+                    box-shadow: 0 8px 16px rgba(0,0,0,0.4); 
+                    border-bottom: 5px solid #FFD700;
+                    margin-bottom: 30px;">
+            <h1 style="margin: 0; font-size: 38px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px;">Sistem Informasi Meteorologi Penerbangan</h1>
+            <p style="margin: 12px 0 20px 0; font-size: 18px; font-weight: 300; letter-spacing: 0.5px; opacity: 0.95;">
+                 Analisis Data Meteorologi Taktis & Dukungan Keselamatan Operasi Udara
+            </p>
+            <hr style="border-top: 1px solid rgba(255,255,255,0.2); width: 60%; margin: auto;">
+            <p style="margin-top: 25px; font-size: 16px; font-weight: 400; font-style: italic; color: #F1C40F;">
+                "Swa Bhuwana Paksa"
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.info("🌡️ **Analisis Termal & Visibilitas**\n\nMenyajikan pemetaan suhu, jarak pandang, dan tinggi dasar awan untuk penentuan status VFR/IFR.")
+    with col2:
+        st.success("🧭 **Wind Rose & Monsun**\n\nSpektrum arah dan kecepatan angin historis untuk rekomendasi operasional Landas Pacu (Runway).")
+    with col3:
+        st.warning("⚠️ **Peringatan Dini Operasional**\n\nInterpretasi ICAO terintegrasi guna mendeteksi ancaman cuaca terhadap keselamatan kru dan armada.")
+    
+    st.markdown("---")
+    st.markdown(f"**Silakan pilih menu di panel sebelah kiri untuk memulai analisis data meteorologi.**")
+
+# 5.B. RENDER DASHBOARD (PARAMETER LAINNYA)
+else:
+    st.markdown(f"### 📊 Dashboard Analisis: {param_options[selected_param].split('. ')[1]}")
+    st.markdown("---")
+
+    if selected_param in ["TempMaxMin", "RH"]:
+        df_filtered = filter_df(data[selected_param])
+        if df_filtered.empty:
+            st.warning("⚠️ Data kosong pada filter terpilih. Silakan sesuaikan parameter bulan atau tahun di sidebar.")
+        else:
+            y_lbl = "Suhu Udara (°C)" if selected_param == "TempMaxMin" else "Kelembapan Relatif (%)"
+            cols = ["00", "03", "06", "09", "12", "15", "18", "21", "Daily_Mean", "Max", "Min"]
+            avail_cols = [c for c in cols if c in df_filtered.columns]
+            agg_df = df_filtered.groupby("Tanggal")[avail_cols].mean(numeric_only=True).reset_index().sort_values("Tanggal")
+            melted = agg_df.melt(id_vars="Tanggal", value_vars=avail_cols, var_name="Jam / Indikator", value_name="Nilai")
             
-            # Melt speed bins
-            speed_cols = ['1-5', '6-10', '11-15', '16-20', '21-25', '26-30', '31-35', '36-45', '>45']
-            melted_rose = rose_df.melt(id_vars=['Direction_Label'], value_vars=speed_cols, 
-                                       var_name='Speed_Knot', value_name='Frequency')
+            fig_line = px.line(melted, x="Tanggal", y="Nilai", color="Jam / Indikator", markers=True, color_discrete_sequence=PALET_KATEGORI)
+            fig_line.update_traces(line=dict(width=2), marker=dict(size=6), hovertemplate="<b>%{y:.1f}</b>")
+            fig_line = apply_wmo_style(fig_line, f"Trend Harian Real-Time - {month_choice} ({selected_year})", "Tanggal Pengamatan", y_lbl)
+            fig_line.update_layout(xaxis=dict(tickmode="linear", dtick=1, range=[0.5, int(agg_df["Tanggal"].max())+0.5]))
             
-            # Aggregate to get means if multiple years/months selected
-            agg_rose = melted_rose.groupby(['Direction_Label', 'Speed_Knot'])['Frequency'].mean().reset_index()
-            # Buang frekuensi 0 agar tidak membebani render Plotly
-            agg_rose = agg_rose[agg_rose['Frequency'] > 0]
+            st.plotly_chart(fig_line, width="stretch")
             
-            fig = px.bar_polar(agg_rose, r="Frequency", theta="Direction_Label", color="Speed_Knot",
-                               color_discrete_sequence=px.colors.sequential.Plasma_r,
-                               title="Distribusi Arah dan Kecepatan Angin (Knots)",
-                               template="plotly_white")
+            try:
+                if selected_param == "TempMaxMin" and "Max" in agg_df and "Min" in agg_df:
+                    avg_max, avg_min = agg_df["Max"].mean(numeric_only=True), agg_df["Min"].mean(numeric_only=True)
+                    ext_max = agg_df["Max"].max(numeric_only=True)
+                    if pd.notna(avg_max) and pd.notna(ext_max):
+                        render_icao_interpretation(
+                            "Suhu Udara Synoptic",
+                            f"Rata-rata suhu maksimum mencapai <b>{avg_max:.1f}°C</b> dengan ekstrem tertinggi <b>{ext_max:.1f}°C</b>, sementara rata-rata minimum berada pada <b>{avg_min:.1f}°C</b>. Rentang diurnal ini menunjukkan karakteristik pembentukan lapisan batas atmosfer yang aktif pada siang hari.",
+                            f"Suhu ekstrem {ext_max:.1f}°C meningkatkan <i>Density Altitude</i> (penurunan kepadatan udara), yang secara langsung memperpanjang jarak lepas landas (<i>take-off run</i>) dan mengurangi daya angkat (<i>lift</i>) pesawat."
+                        )
+                elif selected_param == "RH":
+                    avg_rh = agg_df["Daily_Mean"].mean(numeric_only=True) if "Daily_Mean" in agg_df else agg_df.mean(numeric_only=True).mean()
+                    if pd.notna(avg_rh):
+                        render_icao_interpretation(
+                            "Kelembapan Relatif (RH)",
+                            f"Kelembapan relatif rata-rata harian berada pada level <b>{avg_rh:.1f}%</b>. Pola saturasi tertinggi konsisten terjadi pada pengamatan dini hari (21.00 - 00.00 UTC / 04.00 - 07.00 WIB) akibat pendinginan radiatif permukaan.",
+                            "Kelembapan tinggi (>85%) pada dini/pagi hari memicu probabilitas tinggi pembentukan kabut radiasi (<i>radiation fog</i>) dan embun, yang berpotensi menurunkan <i>Runway Visual Range</i> (RVR) di bawah batas minimum VFR."
+                        )
+            except Exception: 
+                pass
+
+    elif selected_param in ["TempFreq", "Vis", "HS"]:
+        df_filtered = filter_df(data[selected_param])
+        if df_filtered.empty:
+            st.warning("⚠️ Data tidak ditemukan untuk filter ini. Silakan sesuaikan parameter bulan atau tahun di sidebar.")
+        else:
+            if selected_param == "TempFreq":
+                cols = ["5 - 0", "0 - 5", "5 - 10", "10 - 15", "15 - 20", "20 - 25", "25 - 30", "30 - 35", "> 35"]
+                y_lbl = "Persentase Distribusi Suhu (%)"
+            elif selected_param == "Vis":
+                cols = ["<200", "<400", "<600", "<800", "<1500", "<1800", "<3000", "<5000", "<8000"]
+                y_lbl = "Persentase Jarak Pandang (%)"
+            else:
+                cols = ["<150", "<200", "<300", "<500", "<1000", "<1500"]
+                y_lbl = "Persentase Tinggi Dasar Awan (%)"
+                
+            avail_cols = [c for c in cols if c in df_filtered.columns]
+            agg_v = df_filtered.groupby("Jam")[avail_cols].mean(numeric_only=True).reset_index().sort_values("Jam")
+            hm_df = agg_v.melt(id_vars="Jam", value_vars=avail_cols, var_name="Kategori Batas", value_name="Persentase")
             
-            # PERBAIKAN: Konfigurasi Sumbu Polar/Angular agar sesuai standar WMO (Utara di Atas)
-            fig.update_layout(
-                polar=dict(
-                    angularaxis=dict(
-                        direction="clockwise",       # Berputar searah jarum jam
-                        categoryorder="array",       # Memaksa Plotly mengikuti urutan array kita
-                        categoryarray=compass_order, # Array arah yang sudah disiapkan di atas
-                        rotation=90                  # Memutar sumbu agar elemen pertama (Utara) berada persis di atas (90 derajat)
-                    )
-                )
-            )
+            fig_freq = px.line(hm_df, x="Jam", y="Persentase", color="Kategori Batas", markers=True, color_discrete_sequence=PALET_KATEGORI)
+            fig_freq.update_traces(line=dict(width=2.5), marker=dict(size=7), hovertemplate="<b>%{y:.2f}%</b>")
+            fig_freq = apply_wmo_style(fig_freq, f"Pola Distribusi Per Jam Observasi (UTC) - {month_choice}", "Jam Synoptic (UTC)", y_lbl)
+            fig_freq.update_layout(xaxis=dict(tickmode="linear", dtick=3))
             
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig_freq, width="stretch")
             
-        # Tampilkan data kondisi CALM dan VARIABLE
-        calm_df = df_w[df_w['Direction'].isin(['CALM', 'VARIABLE'])]
-        if not calm_df.empty:
-            st.caption("Catatan Kondisi Khusus:")
-            st.dataframe(calm_df.groupby('Direction')['Total'].mean().reset_index().rename(columns={'Total': 'Persentase Kejadian (%)'}))
+            try:
+                mean_series = hm_df.groupby("Kategori Batas")["Persentase"].mean().dropna()
+                if not mean_series.empty:
+                    dom_cat = mean_series.idxmax()
+                    dom_val = mean_series.max()
+                    if selected_param == "TempFreq":
+                        render_icao_interpretation(
+                            "Distribusi Frekuensi Suhu",
+                            f"Distribusi termal paling dominan berada pada rentang suhu <b>{dom_cat} °C</b> dengan frekuensi kemunculan rata-rata <b>{dom_val:.1f}%</b> di seluruh jam pengamatan synoptic.",
+                            "Konsentrasi frekuensi pada suhu >30°C menuntut kewaspadaan terhadap <i>heat stress</i> pada kru <i>flightline</i> serta penurunan daya dorong (<i>thrust</i>) mesin turbin pesawat."
+                        )
+                    elif selected_param == "Vis":
+                        vis_low = hm_df[hm_df["Kategori Batas"].isin(["<200", "<400", "<600", "<800", "<1500"])]["Persentase"].mean()
+                        render_icao_interpretation(
+                            "Jarak Pandang / Visibility",
+                            f"Kondisi jarak pandang didominasi oleh kategori <b>{dom_cat} meter</b> ({dom_val:.1f}%). Akumulasi frekuensi jarak pandang buruk (<1500m) tercatat sebesar <b>{vis_low:.2f}%</b>, umumnya terjadi pada fase transisi subuh-pagi.",
+                            "Jarak pandang di bawah 1500 meter merupakan batas kritis ICAO yang mewajibkan pemberlakuan prosedur penerbangan instrumen (IFR) atau penundaan operasi VFR taktis."
+                        )
+                    else:
+                        render_icao_interpretation(
+                            "Tinggi Dasar Awan / HS",
+                            f"Frekuensi kejadian dasar awan terendah didominasi oleh rentang <b>{dom_cat} FT</b> dengan rata-rata probabilitas <b>{dom_val:.1f}%</b>.",
+                            "Tinggi dasar awan di bawah 1500 FT (khususnya <1000 FT) masuk dalam parameter <i>Instrument Meteorological Conditions</i> (IMC), yang membutuhkan kesiapan sistem pemandu pendaratan instrumen (ILS/VOR)."
+                        )
+            except Exception: 
+                pass
+
+    elif selected_param == "Wind":
+        df_w = filter_df(data["Wind"])
+        if df_w.empty:
+            st.warning("⚠️ Berkas Wind Rose kosong atau format kolom tidak sesuai.")
+        else:
+            tab_rose, tab_musim = st.tabs(["🧭 1. Spektrum Wind Rose (Umum)", "🌦️ 2. Integrasi Analisis Monsun & Sektor WMO 3600"])
+            
+            with tab_rose:
+                fig_rose = create_wind_rose_figure(df_w, f"Mawar Angin Standar Penerbangan - {month_choice} ({selected_year})")
+                if fig_rose: 
+                    st.plotly_chart(fig_rose, width="stretch")
+                else: 
+                    st.info("💡 Tidak ada komponen angin terdeteksi selain data CALM/VARIABLE.")
+                
+            with tab_musim:
+                with st.expander("📖 PANDUAN REFERENSI DE-KODING SEKTOR ARAH ANGIN WMO CODE TABLE 3600"):
+                    st.markdown("Sistem menerjemahkan pembagian **360° lingkaran kompas** menjadi **12 Sektor Utama Internasional** (lebar 30°/sektor) untuk validasi arah datang angin terhadap orientasi landas pacu:")
+                    html_table = "<table class='wmo-table'><tr><th>Kode Sektor</th><th>Mata Angin Internasional</th><th>Arti Pengamatan</th><th>Arah Sudut Kompas (Derajat)</th></tr>"
+                    for code, details in SEKTOR_DETIL_MAP.items():
+                        parts = details.split("|")
+                        lbl, desc, deg = parts[0].split("(")[1].replace(")", "").strip(), parts[0].split(")")[1].strip(), parts[1].strip()
+                        html_table += f"<tr><td><b>{code}</b></td><td>{lbl}</td><td>Angin Datang Dari {desc}</td><td><code>{deg}</code></td></tr>"
+                    html_table += "</table>"
+                    st.markdown(html_table, unsafe_allow_html=True)
+                    st.caption("Sumber: WMO Manual on Codes No. 306 - Code Table 3600 / ICAO Annex 3 Meteorological Service.")
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+                pilihan_musim = st.selectbox("Pilih Siklus Kelompok Musim (BMKG ZOM):", sorted(list(set(MUSIM_MAP.values()))))
+                
+                bulan_musim = [k for k, v in MUSIM_MAP.items() if v == pilihan_musim]
+                df_wind_all = data["Wind"].copy()
+                if selected_year != "Semua Tahun": 
+                    df_wind_all = df_wind_all[df_wind_all["Tahun"] == int(selected_year)]
+                df_musim = df_wind_all[df_wind_all["Bulan"].isin(bulan_musim)]
+                
+                if not df_musim.empty:
+                    col_r, col_b = st.columns([1.0, 1.2])
+                    with col_r:
+                        fig_rm = create_wind_rose_figure(df_musim, f"Wind Rose Profil Musim {pilihan_musim.split(' ')[0]}")
+                        if fig_rm: 
+                            st.plotly_chart(fig_rm, width="stretch")
+                        
+                    with col_b:
+                        df_g_musim = df_musim[~df_musim["Direction"].isin(["CALM", "VARIABLE"])].groupby(["Direction", "Bulan", "Bulan_Idx"])["Total"].mean(numeric_only=True).reset_index().sort_values("Bulan_Idx")
+                        df_g_musim["Sektor_Deskriptif"] = df_g_musim["Direction"].map(SEKTOR_DETIL_MAP).fillna(df_g_musim["Direction"])
+                        
+                        fig_m_bar = px.bar(
+                            df_g_musim, x="Sektor_Deskriptif", y="Total", color="Bulan",
+                            barmode="group", color_discrete_sequence=PALET_MUSIM_BAR,
+                            category_orders={"Sektor_Deskriptif": list(SEKTOR_DETIL_MAP.values()), "Bulan": bulan_musim}
+                        )
+                        fig_m_bar = apply_wmo_style(fig_m_bar, f"Variabilitas Bulanan Sektor WMO 3600 ({pilihan_musim.split(' ')[0]})", "Sektor Arah Angin & Sudut Kompas WMO 3600", "Persentase Kejadian / Frekuensi (%)")
+                        fig_m_bar.update_xaxes(type="category", categoryorder="array", categoryarray=list(SEKTOR_DETIL_MAP.values()))
+                        
+                        st.plotly_chart(fig_m_bar, width="stretch")
+                        
+                    c_val = df_musim[df_musim["Direction"] == "CALM"]["Total"].mean()
+                    try:
+                        mean_wind_series = df_g_musim.groupby("Sektor_Deskriptif")["Total"].mean().dropna()
+                        if not mean_wind_series.empty:
+                            dom_wind_dir = mean_wind_series.idxmax()
+                            dom_wind_val = mean_wind_series.max()
+                            c_val_str = f"{c_val:.2f}%" if pd.notna(c_val) else "0.00%"
+                            render_icao_interpretation(
+                                f"Sirkulasi Angin Musim {pilihan_musim.split(' ')[0]}",
+                                f"Arah angin dominan bertiup dari sektor <b>{dom_wind_dir}</b> dengan probabilitas <b>{dom_wind_val:.1f}%</b>. Kondisi angin tenang (<i>Calm Wind</i> < 1 Knot) tercatat sebesar <b>{c_val_str}</b>, menunjukkan variabilitas termal lokal yang signifikan pada pagi hari.",
+                                "Sektor dominan ini menentukan penentuan arah lepas landas dan pendaratan (<i>Runway in Use</i>) untuk meminimalkan komponen angin silang (<i>Crosswind</i>) atau angin ekor (<i>Tailwind</i>) melebihi limitasi 15 knot sesuai ICAO Annex 14."
+                            )
+                    except Exception: 
+                        pass
+                else:
+                    st.warning("⚠️ Data untuk sirkulasi musim ini tidak ditemukan pada berkas Excel Anda.")
