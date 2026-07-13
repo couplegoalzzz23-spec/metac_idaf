@@ -15,7 +15,11 @@ import plotly.express as px
 # =====================================
 # 1. KONFIGURASI SISTEM UTAMA
 # =====================================
-st.set_page_config(page_title="Tactical Weather Ops — BMKG", page_icon="✈️", layout="wide")
+# PERBAIKAN: Diisolasi dengan try-except agar tidak bentrok dengan app.py saat digabungkan.
+try:
+    st.set_page_config(page_title="Tactical Weather Ops — BMKG", page_icon="✈️", layout="wide")
+except Exception:
+    pass
 
 # =====================================
 # 2. CSS — MILITARY STYLE + RADAR ANIMATION
@@ -328,7 +332,15 @@ def generate_pdf(data, raw_taf, icao, name=""):
     pdf.cell(95, 5, "OBSERVER ........................................", ln=1, align='R')
     pdf.cell(95, 5, "*ON REQUEST", ln=1)
     
-    return bytes(pdf.output())
+    # PERBAIKAN: Mengatasi TypeError: string argument without an encoding
+    try:
+        pdf_out = pdf.output(dest='S')
+        if isinstance(pdf_out, str):
+            return pdf_out.encode('latin1')
+        return bytes(pdf_out)
+    except Exception:
+        # Fallback aman
+        return bytes(pdf.output())
 
 # =====================================
 # 6. ENGINE METAR HISTORY & BMKG FORECAST
@@ -638,7 +650,7 @@ with tab3:
         st.warning("Data riwayat METAR tidak tersedia.")
 
 # ==========================================
-# TAB 4: BMKG TACTICAL FORECAST 
+# TAB 4: BMKG TACTICAL Forecast 
 # ==========================================
 with tab4:
     st.markdown("*Source: BMKG Forecast API — Live Data*")
