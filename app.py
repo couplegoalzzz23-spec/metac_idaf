@@ -28,55 +28,38 @@ st.set_page_config(
 )
 
 # =====================================================================
-# 2. GLOBAL THEME ENGINE (LIGHT & DARK MODE COALITION)
+# 2. CONTROLLER THEME ENGINE (LIGHT & DARK MODE COALITION)
 # =====================================================================
 if 'app_theme' not in st.session_state:
     st.session_state.app_theme = 'Dark Mode'
 
-# Membuat floating container di pojok kanan atas layar untuk Theme Switcher
-st.markdown("""
-    <style>
-    .floating-theme-container {
-        position: fixed;
-        top: 50px;
-        right: 20px;
-        z-index: 999999;
-        background-color: rgba(30, 41, 59, 0.9);
-        padding: 5px 15px;
-        border-radius: 30px;
-        border: 1px solid #334155;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    }
-    /* Penyesuaian responsif Streamlit header */
-    [data-testid="stHeader"] {
-        z-index: 99999;
-    }
-    </style>
-""", unsafe_allow_html=True)
+# Mengatur letak pemilihan mode tampilan di bagian atas kontrol sidebar
+with st.sidebar:
+    st.markdown("<p style='font-weight: bold; margin-bottom: 2px;'>🌓 Mode Tampilan:</p>", unsafe_allow_html=True)
+    chosen_theme = st.radio(
+        "Select Theme",
+        options=["Dark Mode", "Light Mode"],
+        index=0 if st.session_state.app_theme == "Dark Mode" else 1,
+        label_visibility="collapsed",
+        horizontal=True
+    )
+    st.session_state.app_theme = chosen_theme
+    st.markdown("---")
 
-# Render widget pemilih tema secara global di posisi pojok kanan atas
-with st.container():
-    col_space, col_theme = st.columns([8.5, 1.5])
-    with col_theme:
-        chosen_theme = st.selectbox(
-            "🌓 Tampilan Sistem",
-            options=["Dark Mode", "Light Mode"],
-            index=0 if st.session_state.app_theme == "Dark Mode" else 1,
-            key="global_theme_selector"
-        )
-        st.session_state.app_theme = chosen_theme
-
-# Aplikasi Skema Warna Berdasarkan Tema yang Dipilih (Mempengaruhi semua sub-dashboard)
+# Inject CSS dinamis agar seluruh teks dashboard & dropdown terbaca sempurna
 if st.session_state.app_theme == "Light Mode":
     st.markdown("""
         <style>
-        /* Aplikasi Light Mode Global */
         html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
             background-color: #F8FAFC !important;
             color: #0F172A !important;
         }
         [data-testid="stSidebar"] {
-            background-color: #E2E8F0 !important;
+            background-color: #F1F5F9 !important;
+        }
+        /* Memastikan seluruh teks teks di sidebar & main page berwarna gelap di light mode */
+        [data-testid="stSidebar"] .stMarkdown, [data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] label {
+            color: #0F172A !important;
         }
         h1, h2, h3, h4, h5, h6, .uawis-header h1 {
             color: #1E3A8A !important;
@@ -85,38 +68,35 @@ if st.session_state.app_theme == "Light Mode":
             background: linear-gradient(135deg, #E2E8F0 0%, #CBD5E1 100%) !important;
             border-left: 6px solid #1E3A8A !important;
         }
-        .uawis-header p, .stMarkdown, p, span, label {
-            color: #334155 !important;
-        }
         .module-card {
             background-color: #FFFFFF !important;
-            color: #1E293B !important;
             border: 1px solid #CBD5E1 !important;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05) !important;
         }
         .module-card h3 { color: #B45309 !important; }
         .module-card p { color: #475569 !important; }
         
-        /* FIKSASI DROPDOWN READABILITY (Mencegah Teks Putih di Background Putih) */
+        /* SOLUSI READABILITY DROPDOWN MENU DI LIGHT MODE */
         div[data-baseweb="select"] > div {
             background-color: #FFFFFF !important;
             color: #0F172A !important;
             border: 1px solid #CBD5E1 !important;
         }
-        div[data-baseweb="popover"] li, li[role="option"] {
+        div[data-baseweb="popover"] {
+            background-color: #FFFFFF !important;
+        }
+        div[data-baseweb="popover"] li, div[role="option"] {
             background-color: #FFFFFF !important;
             color: #0F172A !important;
         }
-        li[role="option"]:hover {
-            background-color: #F1F5F9 !important;
+        div[data-baseweb="popover"] li:hover, div[role="option"]:hover {
+            background-color: #E2E8F0 !important;
+            color: #0F172A !important;
         }
-        div[data-testid="stMetricValue"] { color: #1E3A8A !important; }
         </style>
     """, unsafe_allow_html=True)
 else:
     st.markdown("""
         <style>
-        /* Aplikasi Dark Mode Global */
         html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
             background-color: #0b0c0c !important;
             color: #cfd2c3 !important;
@@ -132,27 +112,31 @@ else:
             border-left: 6px solid #00B4D8 !important;
         }
         
-        /* FIKSASI DROPDOWN READABILITY DALAM DARK MODE */
+        /* SOLUSI READABILITY DROPDOWN MENU DI DARK MODE */
         div[data-baseweb="select"] > div {
             background-color: #1E293B !important;
             color: #FFFFFF !important;
         }
-        div[data-baseweb="popover"] li, li[role="option"] {
+        div[data-baseweb="popover"] {
+            background-color: #1E293B !important;
+        }
+        div[data-baseweb="popover"] li, div[role="option"] {
             background-color: #1E293B !important;
             color: #FFFFFF !important;
         }
-        li[role="option"]:hover {
+        div[data-baseweb="popover"] li:hover, div[role="option"]:hover {
             background-color: #334155 !important;
+            color: #FFFFFF !important;
         }
         </style>
     """, unsafe_allow_html=True)
 
 # =====================================================================
-# 3. KOREKSI STRUKTUR SIDEBAR & FIX DROPDOWN OVERFLOW
+# 3. GLOBAL FIX: DROPDOWN MENTOK & BISA DIGULIR (ANTI-CLIPPING)
 # =====================================================================
 st.markdown("""
     <style>
-    /* Menghentikan pemotongan elemen di area sidebar (Anti-clipping logic) */
+    /* Mengizinkan sidebar merender popover keluar dari containernya */
     [data-testid="stSidebar"], 
     [data-testid="stSidebarUserContent"],
     .stSelectbox, 
@@ -160,20 +144,16 @@ st.markdown("""
         overflow: visible !important;
     }
     
-    /* Memaksa popover daftar dropdown melayang di lapisan teratas screen */
-    div[data-baseweb="popover"], div[role="listbox"] {
+    /* 
+       OBAT UTAMA: Membatasi tinggi popover dropdown menu agar TIDAK MENTOK ke bawah layar 
+       dan memaksa kemunculan scrollbar vertikal otomatis agar opsi 5 & 6 bisa digulir.
+    */
+    div[data-baseweb="popover"] ul, 
+    div[role="listbox"], 
+    ul[role="listbox"] {
+        max-height: 210px !important;
+        overflow-y: auto !important;
         z-index: 999999 !important;
-    }
-    
-    /* Sentuhan visual pemisah panel kontrol */
-    .control-panel-header {
-        font-family: 'Consolas', monospace;
-        color: #F59E0B;
-        font-weight: bold;
-        text-transform: uppercase;
-        margin-top: 15px;
-        margin-bottom: 5px;
-        font-size: 1.1rem;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -215,10 +195,6 @@ def render_home_page():
             text-align: center;
             height: 100%;
             transition: transform 0.2s ease;
-        }
-        .module-card:hover {
-            transform: translateY(-5px);
-            border-top: 4px solid #00B4D8;
         }
         .module-card h3 { 
             font-size: 1.4rem; 
@@ -301,7 +277,7 @@ page_diurnal = st.Page(
     icon="🌤️"
 )
 
-# Struktur Navigasi Utama Otomatis dinaikkan posisinya di atas Panel Kontrol tambahan
+# Struktur Navigasi Utama dikelompokkan secara rapi di bagian atas sidebar
 pg = st.navigation({
     "MAIN SYSTEM": [page_home],
     "OPERATIONAL MODULES": [page_metar, page_acs, page_diurnal]
