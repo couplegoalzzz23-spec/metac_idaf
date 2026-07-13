@@ -1,9 +1,9 @@
-streamlit>=1.36.0
-pandas
-numpy
-plotly
+streamlit
 requests
 urllib3
 fpdf
 beautifulsoup4
+pandas
+plotly
+numpy
 openpyxl
