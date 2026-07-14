@@ -548,7 +548,7 @@ else:
             
             fig_freq = px.line(hm_df, x="Jam", y="Persentase", color="Kategori Batas", markers=True, color_discrete_sequence=PALET_KATEGORI)
             fig_freq.update_traces(line=dict(width=2.5), marker=dict(size=7), hovertemplate="<b>Jam %{x:02d} UTC</b><br>Persentase: <b>%{y:.2f}%</b><extra></extra>")
-            fig_freq = apply_wmo_style(fig_freq, f"Pola Distribusi Per Jam Observasi (UTC) - {month_choice}", "Jam Synoptic (UTC)", y_lbl)
+            fig_freq = apply_wmo_style(fig_freq, f"Pola Distribusi Diurnal Observasi (UTC) - {month_choice}", "Jam Synoptic (UTC)", y_lbl)
             
             # SOLUSI INTI: Penguncian sumbu X secara presisi untuk mengeliminasi munculnya angka jam 24
             fig_freq.update_layout(
