@@ -242,7 +242,7 @@ def render_home_page():
     with col2:
         st.markdown("""
         <div class="module-card">
-            <h3>📊 Aviation Climatology</h3>
+            <h3>📊 Aviation Meteorology</h3>
             <p>Sistem rekapitulasi histori cuaca. Menyajikan ringkasan kondisi aerodrome RSN berdasarkan pengolahan data ACS periode 2021 hingga 2025.</p>
         </div>
         """, unsafe_allow_html=True)
