@@ -278,7 +278,7 @@ page_metar = st.Page(
 
 page_acs = st.Page(
     "acs_dashboard.py", 
-    title="Aviation Climatology", 
+    title="Aviation Meteorology", 
     icon="📊"
 )
 
