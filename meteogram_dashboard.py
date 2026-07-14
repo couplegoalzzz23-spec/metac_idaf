@@ -497,7 +497,7 @@ else:
             
             fig_line = px.line(melted, x="Tanggal", y="Nilai", color="Jam / Indikator", markers=True, color_discrete_sequence=PALET_KATEGORI)
             fig_line.update_traces(line=dict(width=2), marker=dict(size=6), hovertemplate="<b>Tanggal %{x}</b><br>Nilai: <b>%{y:.1f}</b><extra></extra>")
-            fig_line = apply_wmo_style(fig_line, f"Trend Harian Real-Time - {month_choice} ({selected_year})", "Tanggal Pengamatan", y_lbl)
+            fig_line = apply_wmo_style(fig_line, f"Pola Diurnal T Max Min - {month_choice} ({selected_year})", "Tanggal Pengamatan", y_lbl)
             
             # Pengaman batas maksimum tanggal agar presisi
             max_tgl = int(agg_df["Tanggal"].max()) if not agg_df["Tanggal"].empty and pd.notna(agg_df["Tanggal"].max()) else 31
