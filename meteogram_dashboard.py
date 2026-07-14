@@ -355,7 +355,7 @@ def apply_wmo_style(fig, title_text, x_label, y_label):
         template=chart_template, 
         hovermode="x unified",
         legend=dict(
-            title=dict(text="<b>Komponen Data:</b>", font=dict(color=text_col)),
+            title=dict(text="<b>Kategori:</b>", font=dict(color=text_col)),
             font=dict(color=text_col),
             orientation="v", yanchor="top", y=1, xanchor="left", x=1.02,
             bgcolor=legend_bg, bordercolor=grid_col, borderwidth=1
