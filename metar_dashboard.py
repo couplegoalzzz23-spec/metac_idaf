@@ -15,7 +15,6 @@ import plotly.express as px
 # =====================================
 # 1. KONFIGURASI SISTEM UTAMA
 # =====================================
-# PERBAIKAN: Diisolasi dengan try-except agar tidak bentrok dengan app.py saat digabungkan.
 try:
     st.set_page_config(page_title="Tactical Weather Ops — BMKG", page_icon="✈️", layout="wide")
 except Exception:
@@ -42,39 +41,83 @@ hr, .stDivider {border-top: 1px solid #2f3a2f;}
 # =====================================
 # 3. DATABASE LANUD, ADM1, & KONSTANTA
 # =====================================
+# Format: "Lanud Nama / Lokasi (ICAO)": ["ICAO_UTAMA", "ICAO_FALLBACK1", "ICAO_FALLBACK2", ...]
+# Catatan operasional:
+#   - Banyak Lanud militer TIDAK menerbitkan METAR ke jaringan internasional (NOAA/aviationweather).
+#     Karena itu setiap Lanud diberi fallback ke bandara sipil terdekat yang PASTI report METAR.
+#   - Kode ICAO wilayah Jateng/DIY telah bermigrasi ke blok WAH* (WAHH/WAHQ/WAHS/WAHI),
+#     sedangkan Jatim tetap blok WAR* (WARR/WARA/WARI). Kode lama (WARJ/WARQ/WARS) sudah usang.
 LANUD_MAP = {
-    "Lanud Halim Perdanakusuma (WIHH)": ["WIHH", "WIII"],
-    "Lanud Atang Sendjaja (WIAJ)": ["WIAJ", "WIHH", "WIII"],
-    "Lanud Suryadarma (WIAK)": ["WIAK", "WICC", "WIIH"],
-    "Lanud Husein Sastranegara (WICC)": ["WICC", "WIII"],
-    "Lanud Sugiri Sukani (WIER)": ["WIER", "WICN", "WICC"],
-    "Lanud Sutan Sjahrir - Padang (WIMG)": ["WIMG", "WIEE"], 
-    "Lanud Soewondo - Medan (WIMK)": ["WIMK", "WIMM"],     
-    "Lanud Roesmin Nurjadin (WIBB)": ["WIBB"],
-    "Lanud Supadio (WIOO)": ["WIOO"],
-    "Lanud Sultan Iskandar Muda (WITT)": ["WITT"],
-    "Lanud Sri Mulyono Herlambang (WIPP)": ["WIPP"],
-    "Lanud Radin Inten II (WILL)": ["WILL"],
-    "Lanud Raja Haji Fisabilillah (WIDN)": ["WIDN"],
-    "Lanud Hang Nadim (WIDD)": ["WIDD"],
-    "Lanud Raden Sadjad (WION)": ["WION"],
-    "Lanud Iswahjudi (WARI)": ["WARI", "WARQ", "WARR"], 
-    "Lanud Abdulrachman Saleh (WARA)": ["WARA", "WARR"], 
-    "Lanud Adisutjipto (WARJ)": ["WARJ", "WAHH", "WARQ"], 
-    "Lanud Juanda (WARR)": ["WARR"],
-    "Lanud Sultan Hasanuddin (WAAA)": ["WAAA"],
-    "Lanud I Gusti Ngurah Rai (WADD)": ["WADD"],
-    "Lanud El Tari (WATT)": ["WATT"],
-    "Lanud Sam Ratulangi (WAMM)": ["WAMM"],
-    "Lanud Syamsudin Noor (WAOO)": ["WAOO"],
-    "Lanud Dhomber (WALL)": ["WALL"],
-    "Lanud Iskandar (WAOI)": ["WAOI"],
-    "Lanud Silas Papare (WAJJ)": ["WAJJ"],
-    "Lanud Manuhua (WABB)": ["WABB"],
-    "Lanud Johanes Kapiyau (WABI)": ["WABI"],
-    "Lanud Pattimura (WAPP)": ["WAPP"],
-    "Lanud Leo Wattimena (WAMW)": ["WAMW"],
-    "Lanud J.A. Dimara (WAKK)": ["WAKK"],
+    # ============ KOOPSUD I — WILAYAH BARAT (Sumatera, Jabar, Kalbar) ============
+    # -- Tipe A --
+    "Lanud Halim Perdanakusuma - Jakarta (WIHH)": ["WIHH", "WIII"],
+    "Lanud Atang Sendjaja - Bogor (WIAJ)": ["WIAJ", "WIII", "WIHH"],
+    "Lanud Suryadarma - Subang/Kalijati (WIAK)": ["WIAK", "WICC", "WIII"],
+    "Lanud Roesmin Nurjadin - Pekanbaru (WIBB)": ["WIBB", "WIPP", "WIEE"],
+    "Lanud Supadio - Pontianak (WIOO)": ["WIOO", "WIII"],
+    # -- Tipe B --
+    "Lanud Husein Sastranegara - Bandung (WICC)": ["WICC", "WIII"],
+    "Lanud Soewondo - Medan (WIMK)": ["WIMK", "WIMM"],
+    "Lanud Sultan Iskandar Muda - Banda Aceh (WITT)": ["WITT", "WIMM"],
+    "Lanud Sri Mulyono Herlambang - Palembang (WIPP)": ["WIPP", "WIBB"],
+    "Lanud Raden Sadjad - Natuna/Ranai (WION)": ["WION", "WIDD", "WIDN"],
+    "Lanud Sutan Sjahrir - Padang (WIMG)": ["WIMG", "WIEE"],
+    "Lanud Raja Haji Fisabilillah - Tanjungpinang (WIDN)": ["WIDN", "WIDD"],
+    "Lanud Hang Nadim - Batam (WIDD)": ["WIDD", "WIDN"],
+    "Lanud Pangeran M. Bun Yamin - Lampung/Tulang Bawang (WIPM)": ["WIPM", "WILL", "WIPP"],
+    "Lanud Radin Inten II - Lampung (WILL)": ["WILL", "WIPP", "WIII"],
+    # -- Tipe C --
+    "Lanud Maimun Saleh - Sabang (WITN)": ["WITN", "WITT", "WIMM"],
+    "Lanud H.A.S. Hanandjoeddin - Belitung (WIOD)": ["WIOD", "WIPK", "WIII"],
+    "Lanud Wiriadinata - Tasikmalaya (WICM)": ["WICM", "WICC", "WIII"],
+    "Lanud Sugiri Sukani - Majalengka/Kertajati (WICA)": ["WICA", "WICC", "WIII"],
+    "Lanud Harry Hadisoemantri - Singkawang (WIOS)": ["WIOS", "WIOO"],
+    "Lanud Jenderal Besar Soedirman - Purbalingga (WAHP)": ["WAHP", "WAHS", "WAHI"],
+
+    # ============ KOOPSUD II — WILAYAH TENGAH (Jatim, Bali-Nusra, Kalteng/sel/tim/utara, Sulawesi) ============
+    # -- Tipe A --
+    "Lanud Abdulrachman Saleh - Malang (WARA)": ["WARA", "WARR"],
+    "Lanud Sultan Hasanuddin - Makassar (WAAA)": ["WAAA"],
+    # -- Tipe B --
+    "Lanud Iswahjudi - Madiun (WARI)": ["WARI", "WARR", "WAHQ"],
+    "Lanud Adi Soemarmo - Solo (WAHQ)": ["WAHQ", "WAHS", "WARR"],
+    "Lanud Adisutjipto - Yogyakarta (WAHH)": ["WAHH", "WAHI", "WAHS", "WARR"],
+    "Lanud I Gusti Ngurah Rai - Bali (WADD)": ["WADD"],
+    "Lanud Sjamsudin Noor - Banjarmasin (WAOO)": ["WAOO", "WALL"],
+    "Lanud Dhomber - Balikpapan (WALL)": ["WALL", "WAOO"],
+    # -- Tipe C --
+    "Lanud Iskandar - Pangkalan Bun (WAOI)": ["WAOI", "WAOP", "WAOO"],
+    "Lanud Tjilik Riwut - Palangkaraya (WAOP)": ["WAOP", "WAOO"],
+    "Lanud APT Pranoto - Samarinda (WALS)": ["WALS", "WALL"],
+    "Lanud Anang Busra - Tarakan (WAQQ)": ["WAQQ", "WALL", "WAOO"],
+    "Lanud Haluoleo - Kendari (WAWW)": ["WAWW", "WAAA"],
+    "Lanud El Tari - Kupang (WATT)": ["WATT", "WADD"],
+    "Lanud Sam Ratulangi - Manado (WAMM)": ["WAMM"],
+
+    # ============ KOOPSUD III — WILAYAH TIMUR (Maluku, Malut, Papua) ============
+    "Lanud Pattimura - Ambon (WAPP)": ["WAPP"],
+    "Lanud Sultan Babullah - Ternate (WAMT)": ["WAMT", "WAMM"],
+    "Lanud Leo Wattimena - Morotai (WAMW)": ["WAMW", "WAMT", "WAMM"],
+    "Lanud Silas Papare - Jayapura/Sentani (WAJJ)": ["WAJJ"],
+    "Lanud Manuhua - Biak (WABB)": ["WABB", "WAJJ"],
+    "Lanud Yohanis Kapiyau - Timika (WABP)": ["WABP", "WAJJ"],
+    "Lanud J.A. Dimara - Merauke (WAKK)": ["WAKK", "WAJJ"],
+    "Lanud Sorong - Domine Eduard Osok (WASS)": ["WASS", "WAJJ"],
+    "Lanud Manokwari - Rendani (WASR)": ["WASR", "WABB", "WAJJ"],
+
+    # ============ BANDARA INTERNASIONAL / RUJUKAN METAR ANDAL ============
+    "Bandara Soekarno-Hatta - Jakarta (WIII)": ["WIII"],
+    "Bandara Kualanamu - Medan (WIMM)": ["WIMM"],
+    "Bandara Minangkabau - Padang (WIEE)": ["WIEE", "WIMG"],
+    "Bandara Sultan Thaha - Jambi (WIPA)": ["WIPA", "WIPP", "WIBB"],
+    "Bandara Depati Amir - Pangkalpinang (WIPK)": ["WIPK", "WIII"],
+    "Bandara Fatmawati Soekarno - Bengkulu (WIPL)": ["WIPL", "WIPP"],
+    "Bandara Yogyakarta International - YIA (WAHI)": ["WAHI", "WAHH"],
+    "Bandara Juanda - Surabaya (WARR)": ["WARR"],
+    "Bandara Jenderal Ahmad Yani - Semarang (WAHS)": ["WAHS", "WAHQ"],
+    "Bandara Lombok International (WADL)": ["WADL", "WADD"],
+    "Bandara Djalaluddin - Gorontalo (WAMG)": ["WAMG", "WAMM"],
+    "Bandara Mutiara SIS Al-Jufri - Palu (WAFF)": ["WAFF", "WAAA", "WAMM"],
 }
 
 # Mapping Provinsi ke Kode ADM1 (BPS/BMKG)
@@ -332,14 +375,12 @@ def generate_pdf(data, raw_taf, icao, name=""):
     pdf.cell(95, 5, "OBSERVER ........................................", ln=1, align='R')
     pdf.cell(95, 5, "*ON REQUEST", ln=1)
     
-    # PERBAIKAN: Mengatasi TypeError: string argument without an encoding
     try:
         pdf_out = pdf.output(dest='S')
         if isinstance(pdf_out, str):
             return pdf_out.encode('latin1')
         return bytes(pdf_out)
     except Exception:
-        # Fallback aman
         return bytes(pdf.output())
 
 # =====================================
@@ -380,22 +421,18 @@ def qnh(m):
     x = re.search(r' Q(\d{4})', m)
     return f"{x.group(1)} hPa" if x else "-"
 
-# PERBAIKAN PADA FUNGSI PARSING WAKTU METAR
 def parse_numeric_metar(m):
     t = re.search(r' (\d{2})(\d{2})(\d{2})Z', m)
     if not t: return None
     
-    # Ekstraksi DD HH MM dari METAR
     day = int(t.group(1))
     hour = int(t.group(2))
     minute = int(t.group(3))
     
-    # Deteksi tahun dan bulan dari waktu saat ini
     now_utc = datetime.now(timezone.utc)
     year = now_utc.year
     month = now_utc.month
     
-    # Mengatasi lompatan bulan (Rollover). Misal: Sekarang tgl 1, Data METAR tgl 31 (Bulan sebelumnya)
     if day > now_utc.day + 15:
         month -= 1
         if month == 0:
@@ -405,7 +442,6 @@ def parse_numeric_metar(m):
     try:
         dt_time = datetime(year, month, day, hour, minute, tzinfo=timezone.utc)
     except ValueError:
-        # Fallback logis jika terjadi error tanggal (misal parsing error)
         dt_time = datetime.now(timezone.utc)
         
     data = {"time": dt_time, "wind": None, "temp": None, "dew": None, "qnh": None, "vis": None, "RA": "RA" in m, "TS": "TS" in m, "FG": "FG" in m}
@@ -631,14 +667,13 @@ with tab3:
             fig.add_trace(go.Scatter(x=df_hist["time"], y=df_hist["TS"].astype(int), mode="markers", name="TS"), 5, 1)
             fig.add_trace(go.Scatter(x=df_hist["time"], y=df_hist["FG"].astype(int), mode="markers", name="FG"), 5, 1)
             
-            # PERBAIKAN FORMAT HOVER DAN SUMBU X PADA GRAFIK PLOTLY
             fig.update_layout(
                 height=950, 
                 hovermode="x unified", 
                 template="plotly_dark",
                 xaxis=dict(
                     tickformat="%d %b\n%H:%M",
-                    hoverformat="%d %b %Y, %H:%M UTC"  # Memaksa Plotly menampilkan string waktu dengan benar
+                    hoverformat="%d %b %Y, %H:%M UTC"
                 )
             )
             
@@ -650,7 +685,7 @@ with tab3:
         st.warning("Data riwayat METAR tidak tersedia.")
 
 # ==========================================
-# TAB 4: BMKG TACTICAL Forecast 
+# TAB 4: BMKG TACTICAL FORECAST 
 # ==========================================
 with tab4:
     st.markdown("*Source: BMKG Forecast API — Live Data*")
