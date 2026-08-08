@@ -120,6 +120,79 @@ LANUD_MAP = {
     "Bandara Mutiara SIS Al-Jufri - Palu (WAFF)": ["WAFF", "WAAA", "WAMM"],
 }
 
+# =====================================
+# 3b. PENGELOMPOKAN SEKTOR KOMANDO (KOOPSUD I / II / III)
+# =====================================
+# Hanya metadata pengelompokan untuk UI. Tidak mengubah LANUD_MAP maupun logika fallback.
+# Setiap key HARUS identik dengan key pada LANUD_MAP di atas.
+LANUD_SECTORS = {
+    "🛡️ KOOPSUD I — Wilayah Barat (Sumatera, Jabar, Kalbar)": [
+        "Lanud Halim Perdanakusuma - Jakarta (WIHH)",
+        "Lanud Atang Sendjaja - Bogor (WIAJ)",
+        "Lanud Suryadarma - Subang/Kalijati (WIAK)",
+        "Lanud Roesmin Nurjadin - Pekanbaru (WIBB)",
+        "Lanud Supadio - Pontianak (WIOO)",
+        "Lanud Husein Sastranegara - Bandung (WICC)",
+        "Lanud Soewondo - Medan (WIMK)",
+        "Lanud Sultan Iskandar Muda - Banda Aceh (WITT)",
+        "Lanud Sri Mulyono Herlambang - Palembang (WIPP)",
+        "Lanud Raden Sadjad - Natuna/Ranai (WION)",
+        "Lanud Sutan Sjahrir - Padang (WIMG)",
+        "Lanud Raja Haji Fisabilillah - Tanjungpinang (WIDN)",
+        "Lanud Hang Nadim - Batam (WIDD)",
+        "Lanud Pangeran M. Bun Yamin - Lampung/Tulang Bawang (WIPM)",
+        "Lanud Radin Inten II - Lampung (WILL)",
+        "Lanud Maimun Saleh - Sabang (WITN)",
+        "Lanud H.A.S. Hanandjoeddin - Belitung (WIOD)",
+        "Lanud Wiriadinata - Tasikmalaya (WICM)",
+        "Lanud Sugiri Sukani - Majalengka/Kertajati (WICA)",
+        "Lanud Harry Hadisoemantri - Singkawang (WIOS)",
+        "Lanud Jenderal Besar Soedirman - Purbalingga (WAHP)",
+    ],
+    "🛡️ KOOPSUD II — Wilayah Tengah (Jatim, Bali-Nusra, Kalteng/Sel/Tim/Utara, Sulawesi)": [
+        "Lanud Abdulrachman Saleh - Malang (WARA)",
+        "Lanud Sultan Hasanuddin - Makassar (WAAA)",
+        "Lanud Iswahjudi - Madiun (WARI)",
+        "Lanud Adi Soemarmo - Solo (WAHQ)",
+        "Lanud Adisutjipto - Yogyakarta (WAHH)",
+        "Lanud I Gusti Ngurah Rai - Bali (WADD)",
+        "Lanud Sjamsudin Noor - Banjarmasin (WAOO)",
+        "Lanud Dhomber - Balikpapan (WALL)",
+        "Lanud Iskandar - Pangkalan Bun (WAOI)",
+        "Lanud Tjilik Riwut - Palangkaraya (WAOP)",
+        "Lanud APT Pranoto - Samarinda (WALS)",
+        "Lanud Anang Busra - Tarakan (WAQQ)",
+        "Lanud Haluoleo - Kendari (WAWW)",
+        "Lanud El Tari - Kupang (WATT)",
+        "Lanud Sam Ratulangi - Manado (WAMM)",
+    ],
+    "🛡️ KOOPSUD III — Wilayah Timur (Maluku, Malut, Papua)": [
+        "Lanud Pattimura - Ambon (WAPP)",
+        "Lanud Sultan Babullah - Ternate (WAMT)",
+        "Lanud Leo Wattimena - Morotai (WAMW)",
+        "Lanud Silas Papare - Jayapura/Sentani (WAJJ)",
+        "Lanud Manuhua - Biak (WABB)",
+        "Lanud Yohanis Kapiyau - Timika (WABP)",
+        "Lanud J.A. Dimara - Merauke (WAKK)",
+        "Lanud Sorong - Domine Eduard Osok (WASS)",
+        "Lanud Manokwari - Rendani (WASR)",
+    ],
+    "🛫 BANDARA INTERNASIONAL / RUJUKAN METAR": [
+        "Bandara Soekarno-Hatta - Jakarta (WIII)",
+        "Bandara Kualanamu - Medan (WIMM)",
+        "Bandara Minangkabau - Padang (WIEE)",
+        "Bandara Sultan Thaha - Jambi (WIPA)",
+        "Bandara Depati Amir - Pangkalpinang (WIPK)",
+        "Bandara Fatmawati Soekarno - Bengkulu (WIPL)",
+        "Bandara Yogyakarta International - YIA (WAHI)",
+        "Bandara Juanda - Surabaya (WARR)",
+        "Bandara Jenderal Ahmad Yani - Semarang (WAHS)",
+        "Bandara Lombok International (WADL)",
+        "Bandara Djalaluddin - Gorontalo (WAMG)",
+        "Bandara Mutiara SIS Al-Jufri - Palu (WAFF)",
+    ],
+}
+
 # Mapping Provinsi ke Kode ADM1 (BPS/BMKG)
 PROVINCE_ADM1_MAP = {
     "Aceh (11)": "11", "Sumatera Utara (12)": "12", "Sumatera Barat (13)": "13", 
@@ -547,7 +620,19 @@ with tab1:
     col1, col2 = st.columns([1, 1])
 
     with col1:
-        pilihan = st.selectbox("Pilih Pangkalan / Lanud:", list(sorted(LANUD_MAP.keys())))
+        sektor = st.selectbox(
+            "🎖️ Sektor Komando (Koopsud):",
+            ["🌐 SEMUA SEKTOR"] + list(LANUD_SECTORS.keys())
+        )
+        if sektor == "🌐 SEMUA SEKTOR":
+            opsi_lanud = sorted(LANUD_MAP.keys())
+        else:
+            opsi_lanud = sorted(LANUD_SECTORS[sektor])
+
+        pilihan = st.selectbox(
+            f"Pilih Pangkalan / Lanud ({len(opsi_lanud)} lokasi):",
+            opsi_lanud
+        )
         icao_list = LANUD_MAP[pilihan]
         display_name = pilihan.split(" (")[0].replace("Lanud ", "")
         generate_btn = st.button("TARIK DATA & GENERATE QAM", use_container_width=True)
